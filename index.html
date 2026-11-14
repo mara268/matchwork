@@ -292,7 +292,11 @@
 
 const SUPABASE_URL = 'https://xzgfhhgbnojdihlmtuzw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Hdfx9tGYDJCsDCMMY4FlJg_XL3AM2gf'; // chave pública (pode ficar no site)
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { flowType: 'implicit', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
+});
+// Endereço para onde o link de confirmação do e-mail leva a pessoa de volta
+const VOLTAR_PARA = window.location.origin + window.location.pathname;
 
 const LOGO = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1e2140"/><path d="M120 368 V146 L236 286 L352 146 V300" fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><circle cx="236" cy="300" r="58" fill="#ff5a4e" stroke="#1e2140" stroke-width="14"/><path transform="translate(236 302) scale(.78)" d="M0 24 C-36 2 -44 -24 -27 -38 C-14 -48 0 -40 0 -27 C0 -40 14 -48 27 -38 C44 -24 36 2 0 24Z" fill="#fff"/><path d="M330 330 L370 370 L432 290" fill="none" stroke="#ff5a4e" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -367,7 +371,31 @@ async function descobrirPerfil(user) {
     const ct = await sb.from('candidato_contato').select('telefone,email').eq('id', user.id).maybeSingle();
     return { tipo: 'candidato', perfil: cand.data, contato: ct.data || {} };
   }
-  return null; // conta criada, mas cadastro não terminou
+  return await criarPerfilGuardado(user); // conta confirmada por e-mail: cria o perfil com os dados do cadastro
+}
+
+// Os dados do formulário ficam guardados na própria conta (user_metadata) no momento do cadastro.
+// Assim, quem confirma o e-mail entra direto, sem preencher tudo de novo.
+async function criarPerfilGuardado(user) {
+  const m = user.user_metadata || {};
+  if (m.tipo === 'empresa' && m.nome) {
+    const e = await sb.from('empresa').upsert({ id: user.id, nome: String(m.nome).slice(0, 100) }).select().single();
+    if (e.error) throw e.error;
+    return { tipo: 'empresa', perfil: e.data };
+  }
+  if (m.tipo === 'candidato' && m.nome) {
+    const hab = Array.isArray(m.habilidades) ? m.habilidades.slice(0, 5) : [];
+    const c = await sb.from('candidato').upsert({
+      id: user.id, nome: String(m.nome).slice(0, 100), cargo: m.cargo || null, cidade: m.cidade || null,
+      habilidades: hab, aceite_termos: m.aceite_termos || new Date().toISOString()
+    }).select().single();
+    if (c.error) throw c.error;
+    const ct = await sb.from('candidato_contato').upsert({ id: user.id, telefone: m.telefone || null, email: user.email }).select().single();
+    if (ct.error) throw ct.error;
+    est.avisoPdf = !!m.tinha_pdf;
+    return { tipo: 'candidato', perfil: c.data, contato: ct.data };
+  }
+  return null; // conta antiga sem dados guardados: pede para completar o cadastro
 }
 
 async function entrarComUsuario(user, tipoEscolhido) {
@@ -376,7 +404,9 @@ async function entrarComUsuario(user, tipoEscolhido) {
     // conta existe sem perfil: completar o cadastro com a mesma sessão
     est.usuario = null;
     est.rascunho = null;
-    est.erro = 'Sua conta foi criada, mas o cadastro não terminou. Complete os dados abaixo.';
+    est.erro = '';
+    est.ocupado = false;
+    est.completando = { email: user.email };
     est.emailPendente = user.email;
     est.tela = tipoEscolhido === 'empresa' ? 'cad-empresa' : 'cad-candidato';
     render();
@@ -393,7 +423,7 @@ async function entrarComUsuario(user, tipoEscolhido) {
 
 async function sair() {
   await sb.auth.signOut();
-  est.usuario = null; est.perfil = null; est.contato = null; est.rascunho = null;
+  est.usuario = null; est.perfil = null; est.contato = null; est.rascunho = null; est.completando = null; est.emailPendente = '';
   await ir('inicio');
   toast('Você saiu');
 }
@@ -552,16 +582,17 @@ function telaFormCandidato(editando) {
   const nomeArquivo = r.arquivo ? r.arquivo.name : (r.removerPdf ? '' : r.curriculo_nome);
   const arquivo = nomeArquivo
     ? `<div class="arquivo-ok"><span>${esc(nomeArquivo)} ${r.arquivo ? 'pronto para enviar' : 'enviado'}</span><button type="button" class="link-cinza" id="tirar-pdf">Remover</button></div>` : '';
-  const acesso = editando
-    ? `<div class="campo"><label>E-mail de acesso</label><input value="${esc(r.email)}" disabled></div>`
+  const completando = !editando && est.completando;
+  const acesso = (editando || completando)
+    ? `<div class="campo"><label>E-mail de acesso</label><input value="${esc(editando ? r.email : est.completando.email)}" disabled></div>`
     : `<div class="duas-col">
           <div class="campo"><label for="c-email">E-mail (para entrar)</label><input id="c-email" data-r="email" type="email" value="${esc(r.email)}" placeholder="maria@email.com" autocomplete="email"></div>
           <div class="campo"><label for="c-senha">Senha (mín. 6 caracteres)</label><input id="c-senha" data-r="senha" type="password" value="${esc(r.senha)}" autocomplete="new-password"></div>
         </div>`;
   const form = `
     <div>
-      <h2>${editando ? 'Meu perfil' : 'Crie seu perfil'}</h2>
-      <p class="sub">${editando ? 'Atualize seus dados. O card na vitrine muda na hora.' : 'Leva menos de 2 minutos.'}</p>
+      <h2>${editando ? 'Meu perfil' : (completando ? 'Complete seu perfil' : 'Crie seu perfil')}</h2>
+      <p class="sub">${editando ? 'Atualize seus dados. O card na vitrine muda na hora.' : (completando ? 'Sua conta já está ativa. Falta só preencher o perfil uma vez.' : 'Leva menos de 2 minutos.')}</p>
       <form class="form" id="form-candidato" novalidate>
         ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
         <div class="campo"><label for="c-nome">Nome</label><input id="c-nome" data-r="nome" value="${esc(r.nome)}" placeholder="Maria Souza" autocomplete="name" maxlength="100"></div>
@@ -579,7 +610,9 @@ function telaFormCandidato(editando) {
         ${arquivo}
         ${editando ? '' : caixaAceite(r.aceite)}
         <button class="btn btn-roxo btn-bloco" type="submit" ${est.ocupado ? 'disabled' : ''}>${est.ocupado ? 'Salvando…' : (editando ? 'Salvar perfil' : 'Publicar perfil')}</button>
-        ${editando ? '' : `<p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-candidato">Entrar</button></p>`}
+        ${editando ? '' : (completando
+          ? `<p class="centro dica">Não é você? <button type="button" class="link" data-sair>Sair e usar outra conta</button></p>`
+          : `<p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-candidato">Entrar</button></p>`)}
       </form>
     </div>
     <div><p class="previa-rot">Seu card na vitrine</p>${previaCard(r)}</div>`;
@@ -602,9 +635,12 @@ async function salvarCandidato() {
   const hab = listaHab(r.habilidades);
   if (!r.nome.trim()) throw new Error('__Preencha seu nome.');
   if (hab.length > 5) throw new Error(`__Você informou ${hab.length} habilidades. Escolha no máximo 5.`);
-  if (!editando) {
+  const completando = !editando && est.completando;
+  if (!editando && !completando) {
     if (!r.email.trim() || !r.senha) throw new Error('__Preencha e-mail e senha.');
     if (r.senha.length < 6) throw new Error('__A senha precisa ter pelo menos 6 caracteres.');
+  }
+  if (!editando) {
     if (!r.aceite) throw new Error('__Para criar o perfil, aceite os termos de uso e a política de privacidade.');
   }
 
@@ -613,11 +649,21 @@ async function salvarCandidato() {
   if (editando) { uid = est.usuario.id; email = est.usuario.email; }
   else {
     const atual = (await sb.auth.getSession()).data.session;
-    if (atual && normal(atual.user.email) === normal(r.email)) { uid = atual.user.id; email = atual.user.email; }
+    if (atual && (completando || normal(atual.user.email) === normal(r.email))) { uid = atual.user.id; email = atual.user.email; }
     else {
-      const { data, error } = await sb.auth.signUp({ email: r.email.trim(), password: r.senha, options: { data: { tipo: 'candidato' } } });
+      const { data, error } = await sb.auth.signUp({
+        email: r.email.trim(), password: r.senha,
+        options: {
+          emailRedirectTo: VOLTAR_PARA,
+          data: { tipo: 'candidato', nome: r.nome.trim(), cargo: r.cargo.trim(), cidade: r.cidade.trim(),
+                  telefone: r.telefone.trim(), habilidades: hab, aceite_termos: new Date().toISOString(),
+                  tinha_pdf: !!r.arquivo }
+        }
+      });
       if (error) throw error;
-      if (!data.session) throw new Error('__Enviamos um e-mail de confirmação. Confirme e depois faça login para terminar o cadastro.');
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+        throw new Error('__Já existe uma conta com esse e-mail. Faça login.');
+      if (!data.session) { mostrarConfirmacao(r.email.trim(), !!r.arquivo); return; }
       uid = data.user.id; email = data.user.email;
     }
   }
@@ -645,7 +691,7 @@ async function salvarCandidato() {
   if (ct.error) throw ct.error;
 
   est.usuario = { tipo: 'candidato', id: uid, email };
-  est.perfil = p.data; est.contato = ct.data; est.rascunho = null; est.emailPendente = '';
+  est.perfil = p.data; est.contato = ct.data; est.rascunho = null; est.emailPendente = ''; est.completando = null;
   await ir('painel');
   toast(editando ? 'Perfil salvo' : 'Perfil publicado na vitrine');
 }
@@ -689,11 +735,15 @@ function telaCadEmpresa() {
         <form class="form" id="form-cad-empresa" novalidate>
           ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
           <div class="campo"><label for="e-nome">Nome da empresa</label><input id="e-nome" placeholder="Padaria Bom Pão" maxlength="100"></div>
-          <div class="campo"><label for="e-email">E-mail</label><input id="e-email" type="email" placeholder="contato@empresa.com" value="${esc(pendente)}" autocomplete="email"></div>
-          <div class="campo"><label for="e-senha">Senha (mín. 6 caracteres)</label><input id="e-senha" type="password" autocomplete="new-password"></div>
+          ${est.completando
+            ? `<div class="campo"><label>E-mail de acesso</label><input id="e-email" value="${esc(est.completando.email)}" disabled></div><input id="e-senha" type="hidden" value="">`
+            : `<div class="campo"><label for="e-email">E-mail</label><input id="e-email" type="email" placeholder="contato@empresa.com" value="${esc(pendente)}" autocomplete="email"></div>
+          <div class="campo"><label for="e-senha">Senha (mín. 6 caracteres)</label><input id="e-senha" type="password" autocomplete="new-password"></div>`}
           ${caixaAceite(false)}
           <button class="btn btn-roxo btn-bloco" type="submit" ${est.ocupado ? 'disabled' : ''}>${est.ocupado ? 'Cadastrando…' : 'Cadastrar e ver candidatos'}</button>
-          <p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-empresa">Entrar</button></p>
+          ${est.completando
+            ? `<p class="centro dica">Não é você? <button type="button" class="link" data-sair>Sair e usar outra conta</button></p>`
+            : `<p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-empresa">Entrar</button></p>`}
         </form>
       </div>
     </main>
@@ -701,24 +751,58 @@ function telaCadEmpresa() {
 }
 
 async function cadastrarEmpresa(nome, email, senha, aceite) {
-  if (!nome || !email || !senha) throw new Error('__Preencha nome, e-mail e senha.');
-  if (senha.length < 6) throw new Error('__A senha precisa ter pelo menos 6 caracteres.');
+  const completando = !!est.completando;
+  if (completando) { if (!nome) throw new Error('__Preencha o nome da empresa.'); }
+  else {
+    if (!nome || !email || !senha) throw new Error('__Preencha nome, e-mail e senha.');
+    if (senha.length < 6) throw new Error('__A senha precisa ter pelo menos 6 caracteres.');
+  }
   if (!aceite) throw new Error('__Para cadastrar a empresa, aceite os termos de uso e a política de privacidade.');
   let uid, mail;
   const atual = (await sb.auth.getSession()).data.session;
-  if (atual && normal(atual.user.email) === normal(email)) { uid = atual.user.id; mail = atual.user.email; }
+  if (atual && (completando || normal(atual.user.email) === normal(email))) { uid = atual.user.id; mail = atual.user.email; }
   else {
-    const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { tipo: 'empresa' } } });
+    const { data, error } = await sb.auth.signUp({ email, password: senha,
+      options: { emailRedirectTo: VOLTAR_PARA, data: { tipo: 'empresa', nome } } });
     if (error) throw error;
-    if (!data.session) throw new Error('__Enviamos um e-mail de confirmação. Confirme e depois faça login para terminar o cadastro.');
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+      throw new Error('__Já existe uma conta com esse e-mail. Faça login.');
+    if (!data.session) { mostrarConfirmacao(email, false); return; }
     uid = data.user.id; mail = data.user.email;
   }
   const e = await sb.from('empresa').upsert({ id: uid, nome }).select().single();
   if (e.error) throw e.error;
   est.usuario = { tipo: 'empresa', id: uid, email: mail };
-  est.perfil = e.data; est.emailPendente = '';
+  est.perfil = e.data; est.emailPendente = ''; est.completando = null;
   await ir('swipe');
   toast('Empresa cadastrada');
+}
+
+// ================= Confirmação de e-mail =================
+function mostrarConfirmacao(email, tinhaPdf) {
+  est.confirmacao = { email, tinhaPdf };
+  est.rascunho = null; est.ocupado = false; est.erro = '';
+  est.tela = 'confirmar-email';
+  render(); window.scrollTo(0, 0);
+}
+function telaConfirmarEmail() {
+  const c = est.confirmacao || {};
+  return `<div class="dividida">
+    <aside class="painel-roxo">
+      <button class="marca" data-ir="inicio">${LOGO}MatchWork</button>
+      <div class="meio"><h1>Falta só um passo.</h1><p>Confirme seu e-mail para ativar a conta.</p></div>
+    </aside>
+    <main class="lado-form so-form gutter">
+      <div class="form" style="margin-top:0">
+        <h2>Confira seu e-mail</h2>
+        <p class="sub">Enviamos um link de confirmação para <strong>${esc(c.email || '')}</strong>.</p>
+        <div class="ativo-banner" style="margin-top:8px">Clique no link do e-mail. Você volta para o MatchWork já com a conta ativa e o perfil criado, sem preencher nada de novo.</div>
+        ${c.tinhaPdf ? '<p class="dica">O PDF do currículo não pode ser enviado antes da confirmação. Depois de entrar, envie-o em <strong>Meu perfil</strong>.</p>' : ''}
+        <p class="dica">Não chegou? Veja a caixa de spam ou promoções. O e-mail pode levar alguns minutos.</p>
+        <button class="btn btn-claro btn-bloco" data-ir="login-candidato">Já confirmei, quero entrar</button>
+      </div>
+    </main>
+  </div>`;
 }
 
 // ================= CANDIDATO: painel =================
@@ -746,6 +830,7 @@ function telaPainel() {
   <main class="gutter"><div class="wrap pagina" style="max-width:1200px">
     <h1>Olá, ${esc(primeiroNome(c.nome))}</h1>
     <div class="ativo-banner">Seu perfil está ativo e visível para as empresas</div>
+    ${est.avisoPdf && !c.curriculo_path ? '<div class="novidade" style="margin-top:12px">Falta enviar o PDF do currículo. <button class="link" data-ir="perfil">Enviar em Meu perfil</button></div>' : ''}
     <div class="numeros">
       <div class="numero"><span>Empresas viram</span><strong>${its.length}</strong></div>
       <div class="numero"><span>Matches</span><strong>${matches.length}</strong></div>
@@ -1038,6 +1123,7 @@ function render() {
     'login-candidato': () => telaLogin('candidato'),
     'login-empresa': () => telaLogin('empresa'),
     'cad-empresa': telaCadEmpresa,
+    'confirmar-email': telaConfirmarEmail,
     'painel': telaPainel,
     'ajustes': telaAjustes,
     'swipe': telaSwipe,
@@ -1192,8 +1278,11 @@ document.addEventListener('keydown', ev => {
   render();
   try {
     const { data } = await sb.auth.getSession();
-    if (data.session) await entrarComUsuario(data.session.user, 'candidato');
-    else await ir('inicio');
+    if (data.session) {
+      const voltouDoEmail = /access_token|type=signup/.test(window.location.hash);
+      await entrarComUsuario(data.session.user, (data.session.user.user_metadata || {}).tipo || 'candidato');
+      if (voltouDoEmail) toast('E-mail confirmado. Bem-vindo ao MatchWork!');
+    } else await ir('inicio');
   } catch (e) { erroToast(e); await ir('inicio'); }
 })();
 </script>
