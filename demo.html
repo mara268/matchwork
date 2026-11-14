@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MatchWork Protótipo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%20512%20512%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22%231e2140%22/%3E%3Cpath%20d%3D%22M120%20368%20V146%20L236%20286%20L352%20146%20V300%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%2256%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%22236%22%20cy%3D%22300%22%20r%3D%2258%22%20fill%3D%22%23ff5a4e%22%20stroke%3D%22%231e2140%22%20stroke-width%3D%2214%22/%3E%3Cpath%20transform%3D%22translate%28236%20302%29%20scale%28.78%29%22%20d%3D%22M0%2024%20C-36%202%20-44%20-24%20-27%20-38%20C-14%20-48%200%20-40%200%20-27%20C0%20-40%2014%20-48%2027%20-38%20C44%20-24%2036%202%200%2024Z%22%20fill%3D%22%23fff%22/%3E%3Cpath%20d%3D%22M330%20330%20L370%20370%20L432%20290%22%20fill%3D%22none%22%20stroke%3D%22%23ff5a4e%22%20stroke-width%3D%2240%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout segue o Figma "MatchWork – Protótipo": barra superior de 72px, conteúdo com margem de 80px,
+     telas de acesso divididas (painel azul-noite à esquerda + formulário), swipe com filtros na lateral.
+     Paleta da marca: azul-noite (base) e coral (match). */
+  :root {
+    --roxo: #1e2140;
+    --roxo-escuro: #33385f;
+    --roxo-claro: #ebecf5;
+    --areia: #f1efe8;
+    --borda: #d3d1c7;
+    --texto: #1e2140;
+    --texto-2: #5d6180;
+    --branco: #ffffff;
+    --verde: #e0463a;
+    --verde-escuro: #c4382d;
+    --verde-claro: #ffeceb;
+    --vermelho: #a32d2d;
+    --vermelho-claro: #fcebeb;
+    --ambar: #854f0b;
+    --ambar-claro: #faeeda;
+    --sombra: 0 24px 60px -24px rgba(30, 33, 64, 0.4);
+    --fonte: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--branco); color: var(--texto); }
+  body { margin: 0; font-family: var(--fonte); font-size: 15px; line-height: 1.45; }
+  h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; }
+  p { margin: 0; }
+  button, input { font-family: inherit; }
+  :focus-visible { outline: 3px solid var(--roxo); outline-offset: 2px; }
+  a { color: inherit; }
+
+  .gutter {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+
+  /* ---------- Barra superior ---------- */
+  .topo { border-bottom: 1px solid var(--borda); background: var(--branco); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--branco); }
+  .topo .wrap { height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .marca { font-weight: 700; font-size: 22px; letter-spacing: -0.4px; color: var(--roxo); background: none; border: 0; cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 10px; }
+  .marca svg { width: 34px; height: 34px; flex: none; }
+  .painel-roxo .marca svg { width: 40px; height: 40px; }
+  .nav { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; justify-content: flex-end; }
+  .nav button { background: none; border: 0; cursor: pointer; font-size: 14px; color: var(--texto-2); padding: 6px 0; }
+  .nav button.ativo, .nav button.forte { color: var(--roxo); font-weight: 600; }
+  .nav .nome { font-size: 14px; color: var(--texto-2); }
+
+  /* ---------- Botões e campos ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 48px; padding: 0 22px; border-radius: 12px; border: 1px solid transparent;
+    font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap;
+  }
+  .btn-roxo { background: var(--roxo); color: var(--branco); }
+  .btn-roxo:hover { background: var(--roxo-escuro); }
+  .btn-claro { background: var(--branco); color: var(--texto); border-color: var(--borda); }
+  .btn-claro:hover { background: var(--areia); }
+  .btn-verde { background: var(--verde); color: var(--branco); }
+  .btn-verde:hover { background: var(--verde-escuro); }
+  .btn-sm { height: 40px; padding: 0 16px; font-size: 14px; border-radius: 8px; }
+  .btn-bloco { width: 100%; }
+  .link { background: none; border: 0; padding: 0; cursor: pointer; color: var(--roxo); font-weight: 600; font-size: 14px; }
+  .link-cinza { background: none; border: 0; padding: 0; cursor: pointer; color: var(--texto-2); font-size: 14px; }
+
+  .campo { display: grid; gap: 4px; min-width: 0; }
+  .campo label { font-size: 12px; color: var(--texto-2); }
+  .campo input {
+    height: 44px; width: 100%; border: 1px solid var(--borda); border-radius: 8px; padding: 0 14px;
+    font-size: 14px; color: var(--texto); background: var(--branco);
+  }
+  .campo input:focus { outline: none; border-color: var(--roxo); box-shadow: 0 0 0 3px var(--roxo-claro); }
+  .dica { font-size: 12px; color: var(--texto-2); }
+  .erro { background: var(--vermelho-claro); color: var(--vermelho); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: var(--roxo-claro); color: var(--roxo); font-size: 12px; height: 26px; padding: 0 11px; border-radius: 13px; display: inline-flex; align-items: center; border: 1px solid transparent; }
+  button.chip { cursor: pointer; font-family: inherit; }
+  button.chip[aria-pressed="false"] { background: var(--branco); color: var(--texto-2); border-color: var(--borda); }
+
+  .avatar { flex: none; border-radius: 50%; background: var(--roxo-claro); color: var(--roxo); font-weight: 600; display: grid; place-items: center; }
+
+  /* ---------- Card do candidato ---------- */
+  .card-cand {
+    background: var(--areia); border: 1px solid var(--borda); border-radius: 24px; padding: 36px 40px;
+    display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  }
+  .card-cand .avatar { width: 88px; height: 88px; font-size: 26px; margin-bottom: 18px; }
+  .card-cand h3 { font-size: 30px; overflow-wrap: anywhere; }
+  .card-cand .cargo { font-size: 16px; color: var(--texto-2); }
+  .card-cand .rot { font-size: 13px; color: var(--texto-2); margin-top: 26px; margin-bottom: 4px; }
+  .card-cand .rodape { border-top: 1px solid var(--borda); margin-top: auto; padding-top: 16px; font-size: 14px; color: var(--texto-2); }
+  .card-cand .espaco { flex: 1; min-height: 40px; }
+  .card-cand.pequeno { padding: 20px; border-radius: 16px; }
+  .card-cand.pequeno .avatar { width: 56px; height: 56px; font-size: 18px; margin-bottom: 10px; }
+  .card-cand.pequeno h3 { font-size: 20px; }
+  .card-cand.pequeno .cargo { font-size: 14px; margin-bottom: 12px; }
+
+  .acoes-swipe { display: flex; justify-content: center; gap: 196px; }
+  .redondo {
+    width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    font-size: 26px; font-weight: 600; border: 1px solid var(--borda); background: var(--branco); color: var(--texto-2);
+  }
+  .redondo.coracao { background: var(--verde); border-color: var(--verde); color: var(--branco); }
+  .redondo:hover { transform: scale(1.05); }
+  .legenda { text-align: center; font-size: 13px; color: var(--texto-2); }
+
+  /* ---------- Landing ---------- */
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 80px; align-items: center; padding-block: 60px 100px; }
+  .hero h1 { font-size: 54px; line-height: 1.2; max-width: 640px; }
+  .hero .sub { font-size: 18px; color: var(--texto-2); max-width: 560px; margin-top: 40px; }
+  .hero .botoes { display: flex; gap: 20px; margin-top: 64px; flex-wrap: wrap; }
+  .hero .botoes .btn { width: 210px; }
+  .hero .card-cand { border-radius: 28px; height: 500px; }
+  .hero .card-cand .avatar { width: 80px; height: 80px; font-size: 24px; }
+  .hero .card-cand h3 { font-size: 26px; }
+  .hero .card-cand .cargo { font-size: 15px; margin-bottom: 18px; }
+  .hero .card-cand .rodape { font-size: 13px; }
+  .hero .mini-acoes { display: flex; justify-content: center; gap: 40px; margin-top: 36px; }
+  .hero .mini-acoes .redondo { width: 60px; height: 60px; font-size: 20px; }
+  .sec { padding-block: 0 60px; }
+  .sec h2 { font-size: 32px; margin-bottom: 24px; }
+  .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  .bloco { border-radius: 20px; padding: 26px 32px; min-height: 150px; }
+  .bloco h3 { font-size: 18px; margin-bottom: 14px; }
+  .bloco p { font-size: 16px; }
+  .bloco.ruim { background: var(--roxo-claro); color: var(--texto-2); }
+  .bloco.bom { background: var(--verde-claro); color: var(--verde); }
+  .passos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 60px; }
+  .num { width: 40px; height: 40px; border-radius: 50%; background: var(--roxo-claro); color: var(--roxo); font-weight: 600; display: grid; place-items: center; margin-bottom: 14px; }
+  .passos h3 { font-size: 18px; margin-bottom: 8px; }
+  .passos p { font-size: 15px; color: var(--texto-2); }
+  .faixa { background: var(--roxo); border-radius: 20px; padding: 14px 30px 14px 40px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 40px; }
+  .faixa h2 { color: var(--branco); font-size: 22px; margin: 0; }
+  .faixa .btn { background: var(--branco); color: var(--roxo); height: 52px; width: 200px; }
+
+  /* ---------- Telas divididas (cadastro / login) ---------- */
+  .dividida { display: grid; grid-template-columns: 540px minmax(0, 1fr); min-height: 100vh; }
+  .painel-roxo { background: var(--roxo); color: var(--branco); padding: 60px; display: flex; flex-direction: column; }
+  .painel-roxo .marca { color: var(--branco); font-size: 26px; text-align: left; }
+  .painel-roxo .meio { margin-block: auto; }
+  .painel-roxo h1 { font-size: 40px; line-height: 1.2; }
+  .painel-roxo p { margin-top: 24px; color: #c9cbe0; font-size: 16px; }
+  .lado-form { padding: 60px; display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 300px); gap: 60px; align-content: start; }
+  .lado-form.so-form { grid-template-columns: minmax(0, 420px); align-content: center; }
+  .lado-form h2 { font-size: 30px; }
+  .lado-form .sub { color: var(--texto-2); font-size: 14px; margin-top: 6px; }
+  .form { display: grid; gap: 14px; margin-top: 28px; }
+  .duas-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .upload {
+    border: 1px solid var(--borda); border-radius: 12px; min-height: 100px; display: grid; place-items: center; text-align: center;
+    padding: 16px; cursor: pointer; position: relative; background: var(--branco);
+  }
+  .upload.arrastando { border-color: var(--roxo); background: var(--roxo-claro); }
+  .upload strong { font-size: 14px; display: block; }
+  .upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .arquivo-ok { background: var(--verde-claro); color: var(--verde); border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 10px; }
+  .previa-rot { font-size: 14px; color: var(--texto-2); margin-bottom: 10px; margin-top: 90px; }
+  .demo-contas { font-size: 13px; color: var(--texto-2); background: var(--areia); border-radius: 10px; padding: 12px 14px; }
+  .demo-contas code { font-family: inherit; color: var(--texto); font-weight: 600; }
+  .centro { text-align: center; }
+
+  /* ---------- Swipe da empresa ---------- */
+  .swipe { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 73px); }
+  .filtros { background: var(--areia); padding: 28px 32px; display: grid; gap: 18px; align-content: start; }
+  .filtros h2 { font-size: 18px; }
+  .filtros .chips { margin-top: 4px; }
+  .area-swipe { padding: 28px 24px 40px; display: grid; gap: 30px; justify-items: center; align-content: start; }
+  .contador { font-size: 13px; color: var(--texto-2); }
+  .area-swipe .card-cand { width: min(520px, 100%); min-height: 520px; touch-action: pan-y; user-select: none; cursor: grab; }
+  .area-swipe .card-cand.arrastando { cursor: grabbing; }
+  .area-swipe .card-cand.animando { transition: transform .28s ease, opacity .28s ease; }
+  .vazio { width: min(520px, 100%); border: 1px dashed var(--borda); border-radius: 24px; padding: 48px 32px; text-align: center; color: var(--texto-2); display: grid; gap: 16px; justify-items: center; }
+  .vazio h3 { color: var(--texto); font-size: 20px; }
+
+  /* ---------- Modal ---------- */
+  .fundo-modal { position: fixed; inset: 0; background: rgba(44, 44, 42, 0.92); display: grid; place-items: center; padding: 16px; z-index: 30; }
+  .modal { background: var(--branco); border-radius: 24px; width: min(500px, 100%); padding: 40px; display: grid; gap: 12px; text-align: center; max-height: calc(100vh - 32px); overflow-y: auto; }
+  .modal .icone { width: 72px; height: 72px; border-radius: 50%; background: var(--verde-claro); color: var(--verde); font-size: 32px; display: grid; place-items: center; margin: 0 auto 8px; }
+  .modal h2 { font-size: 32px; }
+  .modal .sub { color: var(--texto-2); font-size: 15px; margin-bottom: 20px; }
+  .pessoa { background: var(--areia); border-radius: 12px; padding: 14px 16px; display: flex; gap: 16px; align-items: center; text-align: left; margin-bottom: 12px; }
+  .pessoa .avatar { width: 48px; height: 48px; font-size: 15px; }
+  .pessoa strong { display: block; font-size: 16px; }
+  .pessoa span { font-size: 13px; color: var(--texto-2); }
+  .modal .btn { width: 100%; }
+  .curriculo { text-align: left; display: grid; gap: 14px; }
+  .curriculo dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; font-size: 14px; }
+  .curriculo dt { color: var(--texto-2); }
+  .curriculo dd { margin: 0; overflow-wrap: anywhere; }
+
+  /* ---------- Meus matches / painel ---------- */
+  .pagina { padding-block: 48px 60px; }
+  .pagina h1 { font-size: 30px; }
+  .pagina .sub { color: var(--texto-2); font-size: 14px; margin-top: 6px; }
+  .tabela-caixa { border: 1px solid var(--borda); border-radius: 16px; margin-top: 40px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 720px; }
+  th { text-align: left; font-size: 12px; font-weight: 500; color: var(--texto-2); padding: 18px 24px; border-bottom: 1px solid var(--borda); }
+  td { padding: 14px 24px; border-bottom: 1px solid var(--borda); font-size: 14px; }
+  tr:last-child td { border-bottom: 0; }
+  .quem { display: flex; align-items: center; gap: 16px; font-weight: 600; }
+  .quem .avatar { width: 44px; height: 44px; font-size: 14px; }
+  .pill { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 110px; padding: 0 12px; border-radius: 14px; font-size: 12px; }
+  .pill.nao { background: var(--ambar-claro); color: var(--ambar); }
+  .pill.sim { background: var(--verde-claro); color: var(--verde); }
+  .acoes { display: flex; gap: 12px; }
+
+  .ativo-banner { background: var(--verde-claro); color: var(--verde); border-radius: 12px; padding: 18px 28px; font-weight: 600; margin-top: 24px; }
+  .numeros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px; margin-top: 24px; }
+  .numero { background: var(--areia); border-radius: 16px; padding: 22px 24px; }
+  .numero span { font-size: 13px; color: var(--texto-2); }
+  .numero strong { display: block; font-size: 36px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .novidades { display: grid; gap: 12px; margin-top: 16px; }
+  .novidade { border: 1px solid var(--borda); border-radius: 12px; padding: 20px 24px; font-size: 15px; }
+  .sec-titulo { font-size: 18px; margin-top: 40px; }
+
+  .rodape-proto { text-align: center; font-size: 12.5px; color: var(--texto-2); padding-block: 20px 28px; }
+
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    background: var(--texto); color: var(--branco); padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; z-index: 40;
+    max-width: calc(100% - 32px);
+  }
+
+  /* ---------- Telas menores ---------- */
+  @media (max-width: 1100px) {
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 48px; }
+    .hero .card-cand { max-width: 440px; width: 100%; }
+    .dividida { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+    .painel-roxo { padding: 32px 24px; gap: 24px; }
+    .painel-roxo h1 { font-size: 30px; }
+    .lado-form { grid-template-columns: minmax(0, 1fr); padding: 32px 0; gap: 24px; }
+    .previa-rot { margin-top: 0; }
+    .swipe { grid-template-columns: minmax(0, 1fr); }
+    .filtros { padding: 20px 16px; }
+  }
+  @media (max-width: 760px) {
+    .nav { gap: 16px; }
+    .nav .so-largo { display: none; }
+    .hero h1 { font-size: 36px; }
+    .hero .sub { margin-top: 20px; }
+    .hero .botoes { margin-top: 32px; }
+    .hero .botoes .btn { width: 100%; }
+    .duas, .passos, .numeros { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .card-cand { padding: 24px; }
+    .card-cand h3 { font-size: 24px; }
+    .area-swipe .card-cand { min-height: 0; }
+    .acoes-swipe { gap: 48px; }
+    .faixa { padding: 20px; }
+    .faixa .btn { width: 100%; }
+    .duas-col { grid-template-columns: minmax(0, 1fr); }
+    .modal { padding: 28px 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .area-swipe .card-cand.animando { transition: none; }
+    .redondo:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="modal"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+/* =================================================================
+   MatchWork – protótipo funcional (sem banco e sem servidor)
+   Baseado no Figma "MatchWork – Protótipo". Os dados ficam salvos
+   no navegador (localStorage) e seguem as tabelas do projeto:
+   empresa, candidato e iteracao (status_match 'sim' ou 'não').
+   ================================================================= */
+
+const CHAVE = 'matchwork-prototipo-v2';
+const LOGO = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1e2140"/><path d="M120 368 V146 L236 286 L352 146 V300" fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><circle cx="236" cy="300" r="58" fill="#ff5a4e" stroke="#1e2140" stroke-width="14"/><path transform="translate(236 302) scale(.78)" d="M0 24 C-36 2 -44 -24 -27 -38 C-14 -48 0 -40 0 -27 C0 -40 14 -48 27 -38 C44 -24 36 2 0 24Z" fill="#fff"/><path d="M330 330 L370 370 L432 290" fill="none" stroke="#ff5a4e" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// ---------- Dados de exemplo (fictícios) ----------
+function dadosIniciais() {
+  return {
+    empresa: [
+      { id: 1, nome: 'Padaria Bom Pão', email: 'contato@padariabompao.com', senha: '123456' },
+      { id: 2, nome: 'Café Central', email: 'contato@cafecentral.com', senha: '123456' },
+      { id: 3, nome: 'Mercadinho Sol', email: 'contato@mercadinhosol.com', senha: '123456' }
+    ],
+    candidato: [
+      { id: 1, nome: 'Maria Souza', email: 'maria@exemplo.com', senha: '123456', cargo: 'Auxiliar administrativo',
+        telefone: '(11) 90000-0001', cidade: 'São Paulo', habilidades: ['Excel', 'Atendimento', 'Vendas', 'Organização', 'Word'], curriculo: 'curriculo-maria.pdf' },
+      { id: 2, nome: 'João Silva', email: 'joao@exemplo.com', senha: '123456', cargo: 'Auxiliar administrativo',
+        telefone: '(11) 90000-0002', cidade: 'São Paulo', habilidades: ['Excel', 'Atendimento', 'Vendas', 'Organização', 'WhatsApp Business'], curriculo: 'curriculo-joao.pdf' },
+      { id: 3, nome: 'Ana Paula', email: 'ana@exemplo.com', senha: '123456', cargo: 'Caixa',
+        telefone: '(11) 90000-0003', cidade: 'São Paulo', habilidades: ['Caixa', 'Atendimento', 'Organização'], curriculo: '' },
+      { id: 4, nome: 'Carlos Lima', email: 'carlos@exemplo.com', senha: '123456', cargo: 'Atendente de balcão',
+        telefone: '(11) 90000-0004', cidade: 'São Paulo', habilidades: ['Atendimento', 'Caixa', 'Vendas'], curriculo: '' },
+      { id: 5, nome: 'Beatriz Rocha', email: 'beatriz@exemplo.com', senha: '123456', cargo: 'Repositora',
+        telefone: '(11) 90000-0005', cidade: 'Guarulhos', habilidades: ['Organização', 'Estoque', 'Trabalho em equipe'], curriculo: '' },
+      { id: 6, nome: 'Rafael Costa', email: 'rafael@exemplo.com', senha: '123456', cargo: 'Auxiliar de padaria',
+        telefone: '(11) 90000-0006', cidade: 'São Paulo', habilidades: ['Panificação', 'Higiene alimentar', 'Atendimento'], curriculo: '' }
+    ],
+    iteracao: [
+      { id_empresa: 2, id_candidato: 1, status_match: 'sim', chamado: false },
+      { id_empresa: 3, id_candidato: 1, status_match: 'não', chamado: false }
+    ]
+  };
+}
+
+// ---------- Armazenamento ----------
+let db = carregar();
+function carregar() {
+  try { const s = localStorage.getItem(CHAVE); if (s) return JSON.parse(s); } catch (e) {}
+  return dadosIniciais();
+}
+function salvar() { try { localStorage.setItem(CHAVE, JSON.stringify(db)); } catch (e) {} }
+const pdfsDaSessao = {}; // id do candidato -> endereço temporário do PDF enviado nesta sessão
+
+// ---------- Estado da tela ----------
+const est = {
+  tela: 'inicio',      // inicio | cad-candidato | login-candidato | login-empresa | cad-empresa | painel | perfil | ajustes | swipe | matches
+  usuario: null,       // { tipo: 'candidato' | 'empresa', id }
+  erro: '',
+  rascunho: null,      // dados do formulário de cadastro/edição do candidato
+  filtros: { cargo: '', habilidades: [], cidade: '' },
+  filtrosAplicados: { cargo: '', habilidades: [], cidade: '' },
+  demo: 0              // índice do card de exemplo na landing
+};
+
+// ---------- Utilidades ----------
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const iniciais = n => (n || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase() || '?';
+const primeiroNome = n => (n || '').trim().split(/\s+/)[0] || '';
+const normal = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const chipsHtml = lista => `<div class="chips">${(lista || []).map(h => `<span class="chip">${esc(h)}</span>`).join('')}</div>`;
+const linkWhats = tel => { const d = String(tel || '').replace(/\D/g, ''); return d ? `https://wa.me/55${d}` : ''; };
+function eu() {
+  if (!est.usuario) return null;
+  return (est.usuario.tipo === 'empresa' ? db.empresa : db.candidato).find(x => x.id === est.usuario.id) || null;
+}
+let toastTimer;
+function toast(t) {
+  const el = document.getElementById('toast');
+  el.textContent = t; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, 2400);
+}
+function ir(tela) { est.tela = tela; est.erro = ''; fecharModal(); render(); window.scrollTo(0, 0); }
+
+// ---------- Barra superior ----------
+function topo(itens) {
+  return `<header class="topo gutter"><div class="wrap">
+    <button class="marca" data-ir="${est.usuario ? (est.usuario.tipo === 'empresa' ? 'swipe' : 'painel') : 'inicio'}">${LOGO}MatchWork</button>
+    <nav class="nav">${itens}</nav></div></header>`;
+}
+
+// ================= LANDING =================
+function telaInicio() {
+  const exemplos = db.candidato.slice(0, 4);
+  const c = exemplos[est.demo % exemplos.length] || dadosIniciais().candidato[1];
+  return `
+  ${topo(`
+    <button class="so-largo" data-rolar="como">Como funciona</button>
+    <button class="so-largo" data-ir="login-empresa">Para empresas</button>
+    <button class="so-largo" data-ir="cad-candidato">Para candidatos</button>
+    <button class="forte" data-ir="login-candidato">Entrar</button>`)}
+  <main class="gutter"><div class="wrap">
+    <section class="hero">
+      <div>
+        <h1>Contratar ficou tão fácil quanto deslizar</h1>
+        <p class="sub">Candidatos se cadastram uma vez. Empresas escolhem com um swipe. Sem formulário gigante, sem 200 currículos no e-mail.</p>
+        <div class="botoes">
+          <button class="btn btn-roxo" data-ir="cad-candidato">Sou candidato</button>
+          <button class="btn btn-claro" data-ir="login-empresa">Sou empresa</button>
+        </div>
+      </div>
+      <div>
+        <article class="card-cand" aria-label="Exemplo de card da vitrine">
+          <div class="avatar">${esc(iniciais(c.nome))}</div>
+          <h3>${esc(c.nome)}</h3>
+          <p class="cargo">${esc(c.cargo)}</p>
+          ${chipsHtml(c.habilidades.slice(0, 4))}
+          <div class="espaco"></div>
+          <p class="rodape">Contato e currículo liberam no match</p>
+          <div class="mini-acoes">
+            <button class="redondo" data-demo aria-label="Descartar (exemplo)">✕</button>
+            <button class="redondo coracao" data-demo aria-label="Dar match (exemplo)">♥</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2>O problema</h2>
+      <div class="duas">
+        <div class="bloco ruim"><h3>Processo comum</h3><p>Formulários enormes, nenhum retorno e 200 currículos no e-mail do dono da empresa.</p></div>
+        <div class="bloco bom"><h3>MatchWork</h3><p>Perfil em 2 minutos, match na hora e conversa direto no WhatsApp.</p></div>
+      </div>
+    </section>
+
+    <section class="sec" id="como">
+      <h2>Como funciona</h2>
+      <div class="passos">
+        <div><div class="num">1</div><h3>Candidato cria o perfil</h3><p>Nome, cargo, 5 habilidades e o PDF do currículo.</p></div>
+        <div><div class="num">2</div><h3>Empresa filtra e desliza</h3><p>Esquerda descarta, direita dá match.</p></div>
+        <div><div class="num">3</div><h3>Match libera o contato</h3><p>WhatsApp e currículo completo, sem intermediários.</p></div>
+      </div>
+    </section>
+
+    <div class="faixa">
+      <h2>Pronto para o primeiro match?</h2>
+      <button class="btn" data-ir="cad-candidato">Criar perfil grátis</button>
+    </div>
+    ${rodapeProto()}
+  </div></main>`;
+}
+
+// ================= CANDIDATO: cadastro / edição =================
+function novoRascunho(c) {
+  return c ? { nome: c.nome, email: c.email, senha: c.senha, cargo: c.cargo, telefone: c.telefone, cidade: c.cidade || '',
+               habilidades: c.habilidades.join(', '), curriculo: c.curriculo || '', pdf: pdfsDaSessao[c.id] || '' }
+           : { nome: '', email: '', senha: '', cargo: '', telefone: '', cidade: '', habilidades: '', curriculo: '', pdf: '' };
+}
+const listaHab = txt => String(txt || '').split(',').map(s => s.trim()).filter(Boolean);
+
+function previaCard(r) {
+  return `<article class="card-cand pequeno" id="previa">
+    <div class="avatar">${esc(iniciais(r.nome || 'Seu nome'))}</div>
+    <h3>${esc(r.nome || 'Seu nome')}</h3>
+    <p class="cargo">${esc(r.cargo || 'Cargo desejado')}</p>
+    ${chipsHtml(listaHab(r.habilidades).slice(0, 5))}
+  </article>`;
+}
+
+function telaFormCandidato(editando) {
+  if (!est.rascunho) est.rascunho = novoRascunho(editando ? eu() : null);
+  const r = est.rascunho;
+  const arquivo = r.curriculo
+    ? `<div class="arquivo-ok"><span>${esc(r.curriculo)} enviado</span><button type="button" class="link-cinza" id="tirar-pdf">Remover</button></div>` : '';
+  const form = `
+    <div>
+      <h2>${editando ? 'Meu perfil' : 'Crie seu perfil'}</h2>
+      <p class="sub">${editando ? 'Atualize seus dados. O card na vitrine muda na hora.' : 'Leva menos de 2 minutos.'}</p>
+      <form class="form" id="form-candidato" novalidate>
+        ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
+        <div class="campo"><label for="c-nome">Nome</label><input id="c-nome" data-r="nome" value="${esc(r.nome)}" placeholder="Maria Souza" autocomplete="name"></div>
+        <div class="campo"><label for="c-cargo">Cargo desejado</label><input id="c-cargo" data-r="cargo" value="${esc(r.cargo)}" placeholder="Auxiliar administrativo"></div>
+        <div class="duas-col">
+          <div class="campo"><label for="c-tel">WhatsApp</label><input id="c-tel" data-r="telefone" value="${esc(r.telefone)}" placeholder="(11) 90000-0000" inputmode="tel"></div>
+          <div class="campo"><label for="c-cidade">Cidade</label><input id="c-cidade" data-r="cidade" value="${esc(r.cidade)}" placeholder="São Paulo"></div>
+        </div>
+        <div class="campo"><label for="c-hab">5 habilidades</label><input id="c-hab" data-r="habilidades" value="${esc(r.habilidades)}" placeholder="Excel, Atendimento, Vendas, Organização, Word"><span class="dica">Separe por vírgula. Até 5.</span></div>
+        <div class="duas-col">
+          <div class="campo"><label for="c-email">E-mail (para entrar)</label><input id="c-email" data-r="email" type="email" value="${esc(r.email)}" placeholder="maria@email.com" autocomplete="email"></div>
+          <div class="campo"><label for="c-senha">Senha</label><input id="c-senha" data-r="senha" type="password" value="${esc(r.senha)}" autocomplete="new-password"></div>
+        </div>
+        <div class="upload" id="upload">
+          <div><strong>Arraste ou escolha o PDF do currículo</strong><span class="dica">Até 5 MB</span></div>
+          <input id="c-pdf" type="file" accept="application/pdf,.pdf" aria-label="Enviar PDF do currículo">
+        </div>
+        ${arquivo}
+        <button class="btn btn-roxo btn-bloco" type="submit">${editando ? 'Salvar perfil' : 'Publicar perfil'}</button>
+        ${editando ? '' : `<p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-candidato">Entrar</button></p>`}
+      </form>
+    </div>
+    <div><p class="previa-rot">Seu card na vitrine</p>${previaCard(r)}</div>`;
+
+  if (editando) {
+    return `${topoCandidato('perfil')}<main class="gutter"><div class="wrap"><div class="lado-form" style="padding-inline:0">${form}</div>${rodapeProto()}</div></main>`;
+  }
+  return `<div class="dividida">
+    <aside class="painel-roxo">
+      <button class="marca" data-ir="inicio">${LOGO}MatchWork</button>
+      <div class="meio"><h1>Cadastre-se uma vez. As empresas vêm até você.</h1><p>Sem caçar vagas: seu perfil vira um card na vitrine.</p></div>
+    </aside>
+    <main class="lado-form gutter">${form}</main>
+  </div>`;
+}
+
+// ================= Login (candidato e empresa) / cadastro de empresa =================
+function telaLogin(tipo) {
+  const ehEmpresa = tipo === 'empresa';
+  const demo = ehEmpresa ? 'contato@padariabompao.com' : 'maria@exemplo.com';
+  return `<div class="dividida">
+    <aside class="painel-roxo">
+      <button class="marca" data-ir="inicio">${LOGO}MatchWork</button>
+      <div class="meio"><h1>${ehEmpresa ? 'Encontre quem você precisa sem ler 200 currículos.' : 'Cadastre-se uma vez. As empresas vêm até você.'}</h1></div>
+    </aside>
+    <main class="lado-form so-form gutter">
+      <div>
+        <h2>${ehEmpresa ? 'Entrar como empresa' : 'Entrar como candidato'}</h2>
+        <form class="form" id="form-login" data-tipo="${tipo}" novalidate>
+          ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
+          <div class="campo"><label for="l-email">E-mail</label><input id="l-email" type="email" placeholder="${demo}" autocomplete="email"></div>
+          <div class="campo"><label for="l-senha">Senha</label><input id="l-senha" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+          <button class="btn btn-roxo btn-bloco" type="submit">Entrar</button>
+          <p class="centro dica">${ehEmpresa
+            ? `Primeira vez? <button type="button" class="link" data-ir="cad-empresa">Cadastrar minha empresa</button>`
+            : `Primeira vez? <button type="button" class="link" data-ir="cad-candidato">Criar meu perfil</button>`}</p>
+          <div class="demo-contas">Conta de demonstração: <code>${demo}</code> · senha <code>123456</code>
+            <br><button type="button" class="link" data-preencher="${demo}">Preencher automaticamente</button></div>
+          <p class="centro"><button type="button" class="link-cinza" data-ir="${ehEmpresa ? 'login-candidato' : 'login-empresa'}">${ehEmpresa ? 'Sou candidato' : 'Sou empresa'}</button></p>
+        </form>
+      </div>
+    </main>
+  </div>`;
+}
+
+function telaCadEmpresa() {
+  return `<div class="dividida">
+    <aside class="painel-roxo">
+      <button class="marca" data-ir="inicio">${LOGO}MatchWork</button>
+      <div class="meio"><h1>Encontre quem você precisa sem ler 200 currículos.</h1><p>Cadastre sua empresa e comece a ver candidatos da região.</p></div>
+    </aside>
+    <main class="lado-form so-form gutter">
+      <div>
+        <h2>Cadastrar minha empresa</h2>
+        <form class="form" id="form-cad-empresa" novalidate>
+          ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
+          <div class="campo"><label for="e-nome">Nome da empresa</label><input id="e-nome" placeholder="Padaria Bom Pão"></div>
+          <div class="campo"><label for="e-email">E-mail</label><input id="e-email" type="email" placeholder="contato@empresa.com"></div>
+          <div class="campo"><label for="e-senha">Senha</label><input id="e-senha" type="password" autocomplete="new-password"></div>
+          <button class="btn btn-roxo btn-bloco" type="submit">Cadastrar e ver candidatos</button>
+          <p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-empresa">Entrar</button></p>
+        </form>
+      </div>
+    </main>
+  </div>`;
+}
+
+// ================= CANDIDATO: painel =================
+function topoCandidato(ativo) {
+  const c = eu();
+  return topo(`
+    <button class="${ativo === 'painel' ? 'ativo' : ''}" data-ir="painel">Início</button>
+    <button class="${ativo === 'perfil' ? 'ativo' : ''}" data-ir="perfil">Meu perfil</button>
+    <button class="${ativo === 'ajustes' ? 'ativo' : ''}" data-ir="ajustes">Ajustes</button>
+    <span class="nome so-largo">${esc(c ? c.nome : '')}</span>`);
+}
+
+function telaPainel() {
+  const c = eu();
+  const minhas = db.iteracao.filter(i => i.id_candidato === c.id);
+  const matches = minhas.filter(i => i.status_match === 'sim');
+  const campos = [c.cargo, c.telefone, c.cidade, c.habilidades.length ? 'ok' : '', c.curriculo];
+  const completo = Math.round(campos.filter(Boolean).length / campos.length * 100);
+  const novidades = minhas.slice().reverse().map(i => {
+    const e = db.empresa.find(x => x.id === i.id_empresa);
+    if (!e) return '';
+    return i.status_match === 'sim'
+      ? `<div class="novidade"><strong>${esc(e.nome)}</strong> deu match com você. Fique de olho no WhatsApp.</div>`
+      : `<div class="novidade">${esc(e.nome)} visualizou seu perfil.</div>`;
+  }).join('');
+  return `${topoCandidato('painel')}
+  <main class="gutter"><div class="wrap pagina" style="max-width:1200px">
+    <h1>Olá, ${esc(primeiroNome(c.nome))}</h1>
+    <div class="ativo-banner">Seu perfil está ativo e visível para as empresas</div>
+    <div class="numeros">
+      <div class="numero"><span>Empresas viram</span><strong>${minhas.length}</strong></div>
+      <div class="numero"><span>Matches</span><strong>${matches.length}</strong></div>
+      <div class="numero"><span>Perfil completo</span><strong>${completo}%</strong></div>
+    </div>
+    <h2 class="sec-titulo">Novidades</h2>
+    <div class="novidades">${novidades || '<div class="novidade">Nenhuma empresa avaliou seu perfil ainda. Ele já está na vitrine, então é só aguardar.</div>'}</div>
+    <div style="margin-top:28px"><button class="btn btn-claro" style="width:200px" data-sair>Sair</button></div>
+    ${rodapeProto()}
+  </div></main>`;
+}
+
+function telaAjustes() {
+  const ehEmpresa = est.usuario.tipo === 'empresa';
+  return `${ehEmpresa ? topoEmpresa('') : topoCandidato('ajustes')}
+  <main class="gutter"><div class="wrap pagina" style="max-width:720px">
+    <h1>Ajustes</h1>
+    <p class="sub">Opções do protótipo para a apresentação.</p>
+    <div class="novidades" style="margin-top:28px">
+      <div class="novidade" style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap">
+        <span>Voltar todos os cadastros e matches ao estado inicial.</span>
+        <button class="btn btn-claro btn-sm" data-restaurar>Restaurar dados de exemplo</button>
+      </div>
+      <div class="novidade" style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap">
+        <span>Encerrar a sessão neste navegador.</span>
+        <button class="btn btn-claro btn-sm" data-sair>Sair</button>
+      </div>
+    </div>
+  </div></main>`;
+}
+
+// ================= EMPRESA: swipe =================
+function topoEmpresa(ativo) {
+  const e = eu();
+  return topo(`
+    <button class="${ativo === 'swipe' ? 'ativo' : ''}" data-ir="swipe">Candidatos</button>
+    <button class="${ativo === 'matches' ? 'ativo' : ''}" data-ir="matches">Meus matches</button>
+    <button data-ir="ajustes">${esc(e ? e.nome : '')}</button>`);
+}
+
+function todasHabilidades() {
+  const cont = {};
+  db.candidato.forEach(c => c.habilidades.forEach(h => cont[h] = (cont[h] || 0) + 1));
+  return Object.keys(cont).sort((a, b) => cont[b] - cont[a] || a.localeCompare(b)).slice(0, 8);
+}
+
+function filaDeCandidatos() {
+  const idEmp = est.usuario.id;
+  const f = est.filtrosAplicados;
+  return db.candidato.filter(c => {
+    if (db.iteracao.some(i => i.id_empresa === idEmp && i.id_candidato === c.id)) return false;
+    if (f.cargo && !normal(c.cargo).includes(normal(f.cargo))) return false;
+    if (f.cidade && !normal(c.cidade).includes(normal(f.cidade))) return false;
+    if (f.habilidades.length && !f.habilidades.some(h => c.habilidades.includes(h))) return false;
+    return true;
+  });
+}
+
+function telaSwipe() {
+  const fila = filaDeCandidatos();
+  const c = fila[0];
+  const f = est.filtros;
+  const temFiltro = est.filtrosAplicados.cargo || est.filtrosAplicados.cidade || est.filtrosAplicados.habilidades.length;
+  const centro = c ? `
+      <p class="contador">Candidato 1 de ${fila.length}</p>
+      <article class="card-cand" id="card" data-id="${c.id}" tabindex="0" aria-label="Card de ${esc(c.nome)}. Use as setas: esquerda descarta, direita dá match.">
+        <div class="avatar">${esc(iniciais(c.nome))}</div>
+        <h3>${esc(c.nome)}</h3>
+        <p class="cargo">${esc(c.cargo)}${c.cidade ? ` · ${esc(c.cidade)}` : ''}</p>
+        <p class="rot">Habilidades</p>
+        ${chipsHtml(c.habilidades)}
+        <div class="espaco"></div>
+        <p class="rodape">Contato e currículo liberam no match</p>
+      </article>
+      <div class="acoes-swipe">
+        <button class="redondo" data-decidir="não" aria-label="Descartar">✕</button>
+        <button class="redondo coracao" data-decidir="sim" aria-label="Dar match">♥</button>
+      </div>
+      <p class="legenda">Esquerda descarta · direita dá match</p>`
+    : `<div class="vazio">
+        <h3>${temFiltro ? 'Nenhum candidato com esses filtros' : 'Você viu todos os candidatos'}</h3>
+        <p>${temFiltro ? 'Tente remover alguma habilidade ou mudar o cargo.' : 'Quando novas pessoas se cadastrarem, elas aparecem aqui.'}</p>
+        ${temFiltro ? '<button class="btn btn-claro" data-limpar>Limpar filtros</button>' : '<button class="btn btn-roxo" data-ir="matches">Ver meus matches</button>'}
+      </div>`;
+  return `${topoEmpresa('swipe')}
+  <div class="swipe">
+    <aside class="filtros gutter">
+      <h2>Filtros</h2>
+      <div class="campo"><label for="f-cargo">Cargo</label><input id="f-cargo" value="${esc(f.cargo)}" placeholder="Atendente de balcão"></div>
+      <div class="campo"><label>Habilidades</label>
+        <div class="chips">${todasHabilidades().map(h => `<button type="button" class="chip" data-hab="${esc(h)}" aria-pressed="${f.habilidades.includes(h)}">${esc(h)}</button>`).join('')}</div>
+      </div>
+      <div class="campo"><label for="f-cidade">Cidade</label><input id="f-cidade" value="${esc(f.cidade)}" placeholder="São Paulo"></div>
+      <button class="btn btn-roxo btn-bloco" data-aplicar>Aplicar filtros</button>
+      ${temFiltro ? '<button class="link-cinza" data-limpar>Limpar filtros</button>' : ''}
+    </aside>
+    <main class="area-swipe gutter">${centro}</main>
+  </div>`;
+}
+
+function decidir(idCand, status) {
+  const idEmp = est.usuario.id;
+  // RN13: uma única interação por empresa e candidato
+  if (!db.iteracao.some(i => i.id_empresa === idEmp && i.id_candidato === idCand)) {
+    db.iteracao.push({ id_empresa: idEmp, id_candidato: idCand, status_match: status, chamado: false });
+    salvar();
+  }
+  if (status === 'sim') abrirMatch(idCand);
+  else toast('Candidato descartado');
+  render();
+}
+
+function animarSaida(dir, depois) {
+  const card = document.getElementById('card');
+  if (!card) return depois();
+  card.classList.add('animando');
+  card.style.transform = `translateX(${dir * 600}px) rotate(${dir * 18}deg)`;
+  card.style.opacity = '0';
+  setTimeout(depois, 260);
+}
+
+function ligarArraste() {
+  const card = document.getElementById('card');
+  if (!card) return;
+  let x0 = null, dx = 0;
+  card.addEventListener('pointerdown', ev => { x0 = ev.clientX; dx = 0; card.setPointerCapture(ev.pointerId); card.classList.add('arrastando'); });
+  card.addEventListener('pointermove', ev => {
+    if (x0 === null) return;
+    dx = ev.clientX - x0;
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 20}deg)`;
+  });
+  const soltar = () => {
+    if (x0 === null) return;
+    x0 = null; card.classList.remove('arrastando');
+    const id = Number(card.dataset.id);
+    if (dx > 110) animarSaida(1, () => decidir(id, 'sim'));
+    else if (dx < -110) animarSaida(-1, () => decidir(id, 'não'));
+    else { card.classList.add('animando'); card.style.transform = ''; setTimeout(() => card.classList.remove('animando'), 300); }
+  };
+  card.addEventListener('pointerup', soltar);
+  card.addEventListener('pointercancel', soltar);
+}
+
+// ================= Modais: match e currículo =================
+function fecharModal() { document.getElementById('modal').innerHTML = ''; }
+function abrirModal(html) {
+  const m = document.getElementById('modal');
+  m.innerHTML = `<div class="fundo-modal" data-fundo><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  m.querySelectorAll('[data-fechar]').forEach(b => b.onclick = fecharModal);
+  m.querySelector('[data-fundo]').onclick = ev => { if (ev.target.hasAttribute('data-fundo')) fecharModal(); };
+  m.querySelectorAll('[data-whats]').forEach(a => a.addEventListener('click', () => marcarChamado(Number(a.dataset.whats))));
+  m.querySelectorAll('[data-curriculo]').forEach(b => b.onclick = () => abrirCurriculo(Number(b.dataset.curriculo)));
+  const foco = m.querySelector('.btn, button'); if (foco) foco.focus();
+}
+
+function botaoWhats(c, classe) {
+  const url = linkWhats(c.telefone);
+  return url
+    ? `<a class="btn ${classe}" href="${url}" target="_blank" rel="noopener" data-whats="${c.id}">Chamar no WhatsApp</a>`
+    : `<button class="btn ${classe}" disabled>Sem WhatsApp</button>`;
+}
+
+function abrirMatch(idCand) {
+  const c = db.candidato.find(x => x.id === idCand);
+  abrirModal(`
+    <div class="icone" aria-hidden="true">♥</div>
+    <h2>Deu match</h2>
+    <p class="sub">${esc(primeiroNome(c.nome))} está disponível para conversar</p>
+    <div class="pessoa"><div class="avatar">${esc(iniciais(c.nome))}</div><div><strong>${esc(c.nome)}</strong><span>${esc(c.cargo)}</span></div></div>
+    ${botaoWhats(c, 'btn-verde')}
+    <button class="btn btn-claro" data-curriculo="${c.id}">Ver currículo completo</button>
+    <p class="dica">WhatsApp: <span style="user-select:all">${esc(c.telefone || 'não informado')}</span></p>
+    <button class="link-cinza" data-fechar>Continuar vendo candidatos</button>`);
+}
+
+function abrirCurriculo(idCand) {
+  const c = db.candidato.find(x => x.id === idCand);
+  const pdf = pdfsDaSessao[c.id];
+  abrirModal(`
+    <div class="curriculo">
+      <div class="pessoa" style="margin:0"><div class="avatar">${esc(iniciais(c.nome))}</div><div><strong>${esc(c.nome)}</strong><span>${esc(c.cargo)}</span></div></div>
+      <dl>
+        <dt>WhatsApp</dt><dd>${esc(c.telefone || 'Não informado')}</dd>
+        <dt>E-mail</dt><dd>${esc(c.email)}</dd>
+        <dt>Cidade</dt><dd>${esc(c.cidade || 'Não informada')}</dd>
+        <dt>Habilidades</dt><dd>${esc(c.habilidades.join(', ') || 'Não informadas')}</dd>
+        <dt>Currículo</dt><dd>${c.curriculo ? esc(c.curriculo) : 'Nenhum PDF enviado'}</dd>
+      </dl>
+      ${pdf ? `<a class="btn btn-roxo" href="${pdf}" target="_blank" rel="noopener">Abrir PDF</a>`
+            : (c.curriculo ? '<p class="dica">No protótipo, o PDF só abre na mesma sessão em que foi enviado. Os perfis de exemplo mostram apenas o nome do arquivo.</p>' : '')}
+      <button class="btn btn-claro" data-fechar>Fechar</button>
+    </div>`);
+}
+
+function marcarChamado(idCand) {
+  const it = db.iteracao.find(i => i.id_empresa === est.usuario.id && i.id_candidato === idCand);
+  if (it && !it.chamado) { it.chamado = true; salvar(); }
+  if (est.tela === 'matches') render();
+}
+
+// ================= EMPRESA: meus matches =================
+function telaMatches() {
+  const idEmp = est.usuario.id;
+  const lista = db.iteracao.filter(i => i.id_empresa === idEmp && i.status_match === 'sim')
+    .map(i => ({ it: i, c: db.candidato.find(x => x.id === i.id_candidato) })).filter(x => x.c);
+  const aguardando = lista.filter(x => !x.it.chamado).length;
+  const linhas = lista.map(({ it, c }) => `
+    <tr>
+      <td><div class="quem"><div class="avatar">${esc(iniciais(c.nome))}</div>${esc(c.nome)}</div></td>
+      <td>${esc(c.cargo)}</td>
+      <td><span class="pill ${it.chamado ? 'sim' : 'nao'}">${it.chamado ? 'Chamado' : 'Não chamado'}</span></td>
+      <td><div class="acoes">
+        ${linkWhats(c.telefone) ? `<a class="btn btn-verde btn-sm" href="${linkWhats(c.telefone)}" target="_blank" rel="noopener" data-whats-lista="${c.id}">WhatsApp</a>` : ''}
+        <button class="btn btn-claro btn-sm" data-curriculo="${c.id}">Currículo</button>
+      </div></td>
+    </tr>`).join('');
+  return `${topoEmpresa('matches')}
+  <main class="gutter"><div class="wrap pagina" style="max-width:1200px">
+    <h1>Meus matches</h1>
+    <p class="sub">${lista.length ? `${aguardando} ${aguardando === 1 ? 'candidato aguardando' : 'candidatos aguardando'} contato` : 'Você ainda não deu match com ninguém.'}</p>
+    ${lista.length ? `<div class="tabela-caixa"><table>
+      <thead><tr><th>Candidato</th><th>Cargo</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`
+      : `<div style="margin-top:28px"><button class="btn btn-roxo" data-ir="swipe">Ver candidatos</button></div>`}
+    ${lista.length ? `<div style="margin-top:28px"><button class="btn btn-roxo" style="width:240px" data-ir="swipe">Voltar aos candidatos</button></div>` : ''}
+    ${rodapeProto()}
+  </div></main>`;
+}
+
+function rodapeProto() {
+  return `<p class="rodape-proto">Protótipo acadêmico com dados fictícios. <button class="link" data-restaurar style="font-size:12.5px">Restaurar dados de exemplo</button></p>`;
+}
+
+// ================= Renderização e eventos =================
+function render() {
+  const precisaLogin = ['painel', 'perfil', 'ajustes', 'swipe', 'matches'];
+  if (precisaLogin.includes(est.tela) && !eu()) { est.usuario = null; est.tela = 'inicio'; }
+  const telas = {
+    'inicio': telaInicio,
+    'cad-candidato': () => telaFormCandidato(false),
+    'perfil': () => telaFormCandidato(true),
+    'login-candidato': () => telaLogin('candidato'),
+    'login-empresa': () => telaLogin('empresa'),
+    'cad-empresa': telaCadEmpresa,
+    'painel': telaPainel,
+    'ajustes': telaAjustes,
+    'swipe': telaSwipe,
+    'matches': telaMatches
+  };
+  document.getElementById('app').innerHTML = telas[est.tela]();
+  ligar();
+}
+
+function entrar(tipo, id) {
+  document.getElementById('toast').hidden = true;
+  est.usuario = { tipo, id };
+  est.rascunho = null;
+  est.filtros = { cargo: '', habilidades: [], cidade: '' };
+  est.filtrosAplicados = { cargo: '', habilidades: [], cidade: '' };
+  ir(tipo === 'empresa' ? 'swipe' : 'painel');
+}
+
+function ligar() {
+  const app = document.getElementById('app');
+  app.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => {
+    const destino = b.dataset.ir;
+    if (destino === 'cad-candidato' || destino === 'perfil') est.rascunho = null;
+    ir(destino);
+  });
+  app.querySelectorAll('[data-rolar]').forEach(b => b.onclick = () => document.getElementById(b.dataset.rolar).scrollIntoView({ behavior: 'smooth' }));
+  app.querySelectorAll('[data-demo]').forEach(b => b.onclick = () => { est.demo++; render(); });
+  app.querySelectorAll('[data-sair]').forEach(b => b.onclick = () => { est.usuario = null; est.rascunho = null; ir('inicio'); toast('Você saiu'); });
+  app.querySelectorAll('[data-restaurar]').forEach(b => b.onclick = () => {
+    db = dadosIniciais(); salvar();
+    Object.keys(pdfsDaSessao).forEach(k => delete pdfsDaSessao[k]);
+    est.usuario = null; est.rascunho = null; ir('inicio'); toast('Dados de exemplo restaurados');
+  });
+  app.querySelectorAll('[data-preencher]').forEach(b => b.onclick = () => {
+    document.getElementById('l-email').value = b.dataset.preencher;
+    document.getElementById('l-senha').value = '123456';
+  });
+  app.querySelectorAll('[data-curriculo]').forEach(b => b.onclick = () => abrirCurriculo(Number(b.dataset.curriculo)));
+  app.querySelectorAll('[data-whats-lista]').forEach(a => a.addEventListener('click', () => marcarChamado(Number(a.dataset.whatsLista))));
+
+  // Login
+  const fl = document.getElementById('form-login');
+  if (fl) fl.onsubmit = ev => {
+    ev.preventDefault();
+    const tipo = fl.dataset.tipo;
+    const email = normal(document.getElementById('l-email').value);
+    const senha = document.getElementById('l-senha').value;
+    const conta = (tipo === 'empresa' ? db.empresa : db.candidato).find(u => normal(u.email) === email && u.senha === senha);
+    if (!conta) { est.erro = 'E-mail ou senha incorretos. Confira os dados ou use a conta de demonstração.'; render(); return; }
+    entrar(tipo, conta.id);
+  };
+
+  // Cadastro de empresa
+  const fe = document.getElementById('form-cad-empresa');
+  if (fe) fe.onsubmit = ev => {
+    ev.preventDefault();
+    const nome = document.getElementById('e-nome').value.trim();
+    const email = document.getElementById('e-email').value.trim();
+    const senha = document.getElementById('e-senha').value;
+    if (!nome || !email || !senha) { est.erro = 'Preencha nome, e-mail e senha.'; render(); return; }
+    if (db.empresa.some(e => normal(e.email) === normal(email))) { est.erro = 'Já existe uma empresa com esse e-mail. Faça login.'; render(); return; }
+    const nova = { id: Math.max(0, ...db.empresa.map(e => e.id)) + 1, nome, email, senha };
+    db.empresa.push(nova); salvar();
+    entrar('empresa', nova.id);
+    toast('Empresa cadastrada');
+  };
+
+  // Cadastro / edição do candidato
+  const fc = document.getElementById('form-candidato');
+  if (fc) {
+    fc.querySelectorAll('[data-r]').forEach(inp => inp.addEventListener('input', () => {
+      est.rascunho[inp.dataset.r] = inp.value;
+      document.getElementById('previa').outerHTML = previaCard(est.rascunho);
+    }));
+    const up = document.getElementById('upload');
+    const arquivo = document.getElementById('c-pdf');
+    const receber = f => {
+      if (!f) return;
+      if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { est.erro = 'Envie o currículo em PDF.'; render(); return; }
+      if (f.size > 5 * 1024 * 1024) { est.erro = 'O PDF tem mais de 5 MB. Envie um arquivo menor.'; render(); return; }
+      est.rascunho.curriculo = f.name;
+      try { est.rascunho.pdf = URL.createObjectURL(f); } catch (e) { est.rascunho.pdf = ''; }
+      est.erro = ''; render();
+    };
+    arquivo.onchange = () => receber(arquivo.files[0]);
+    ['dragenter', 'dragover'].forEach(t => up.addEventListener(t, ev => { ev.preventDefault(); up.classList.add('arrastando'); }));
+    ['dragleave', 'drop'].forEach(t => up.addEventListener(t, () => up.classList.remove('arrastando')));
+    up.addEventListener('drop', ev => { ev.preventDefault(); receber(ev.dataTransfer.files[0]); });
+    const tirar = document.getElementById('tirar-pdf');
+    if (tirar) tirar.onclick = () => { est.rascunho.curriculo = ''; est.rascunho.pdf = ''; render(); };
+
+    fc.onsubmit = ev => {
+      ev.preventDefault();
+      const r = est.rascunho;
+      const hab = listaHab(r.habilidades);
+      const editando = est.tela === 'perfil';
+      if (!r.nome.trim() || !r.email.trim() || !r.senha) { est.erro = 'Preencha nome, e-mail e senha.'; render(); return; }
+      if (hab.length > 5) { est.erro = `Você informou ${hab.length} habilidades. Escolha no máximo 5.`; render(); return; }
+      const dono = db.candidato.find(c => normal(c.email) === normal(r.email));
+      if (dono && (!editando || dono.id !== est.usuario.id)) { est.erro = 'Já existe um perfil com esse e-mail. Faça login.'; render(); return; }
+      const dados = { nome: r.nome.trim(), email: r.email.trim(), senha: r.senha, cargo: r.cargo.trim(), telefone: r.telefone.trim(),
+                      cidade: r.cidade.trim(), habilidades: hab, curriculo: r.curriculo };
+      let id;
+      if (editando) { Object.assign(eu(), dados); id = est.usuario.id; }
+      else { id = Math.max(0, ...db.candidato.map(c => c.id)) + 1; db.candidato.push({ id, ...dados }); }
+      if (r.pdf) pdfsDaSessao[id] = r.pdf; else delete pdfsDaSessao[id];
+      salvar();
+      if (editando) { est.rascunho = null; ir('painel'); toast('Perfil salvo'); }
+      else { entrar('candidato', id); toast('Perfil publicado na vitrine'); }
+    };
+  }
+
+  // Filtros e swipe
+  const fCargo = document.getElementById('f-cargo');
+  if (fCargo) {
+    fCargo.oninput = () => est.filtros.cargo = fCargo.value;
+    const fCid = document.getElementById('f-cidade');
+    fCid.oninput = () => est.filtros.cidade = fCid.value;
+    app.querySelectorAll('[data-hab]').forEach(b => b.onclick = () => {
+      const h = b.dataset.hab, l = est.filtros.habilidades;
+      est.filtros.habilidades = l.includes(h) ? l.filter(x => x !== h) : [...l, h];
+      b.setAttribute('aria-pressed', est.filtros.habilidades.includes(h));
+    });
+    const aplicar = () => { est.filtrosAplicados = JSON.parse(JSON.stringify(est.filtros)); render(); };
+    app.querySelector('[data-aplicar]').onclick = aplicar;
+    [fCargo, fCid].forEach(i => i.onkeydown = ev => { if (ev.key === 'Enter') aplicar(); });
+  }
+  app.querySelectorAll('[data-limpar]').forEach(b => b.onclick = () => {
+    est.filtros = { cargo: '', habilidades: [], cidade: '' };
+    est.filtrosAplicados = { cargo: '', habilidades: [], cidade: '' };
+    render();
+  });
+  app.querySelectorAll('[data-decidir]').forEach(b => b.onclick = () => {
+    const card = document.getElementById('card');
+    const st = b.dataset.decidir;
+    animarSaida(st === 'sim' ? 1 : -1, () => decidir(Number(card.dataset.id), st));
+  });
+  ligarArraste();
+}
+
+// Teclado no swipe: seta esquerda descarta, seta direita dá match
+document.addEventListener('keydown', ev => {
+  if (est.tela !== 'swipe' || document.getElementById('modal').innerHTML) {
+    if (ev.key === 'Escape') fecharModal();
+    return;
+  }
+  if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  const card = document.getElementById('card');
+  if (!card) return;
+  if (ev.key === 'ArrowRight') animarSaida(1, () => decidir(Number(card.dataset.id), 'sim'));
+  if (ev.key === 'ArrowLeft') animarSaida(-1, () => decidir(Number(card.dataset.id), 'não'));
+});
+
+render();
+</script>
+</body>
+</html>

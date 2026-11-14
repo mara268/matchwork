@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>MatchWork Protótipo</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<title>MatchWork</title>
+<meta name="description" content="MatchWork: recrutamento reverso. Candidatos criam o perfil uma vez e as empresas da região dão match.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%20512%20512%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22%231e2140%22/%3E%3Cpath%20d%3D%22M120%20368%20V146%20L236%20286%20L352%20146%20V300%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%2256%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%22236%22%20cy%3D%22300%22%20r%3D%2258%22%20fill%3D%22%23ff5a4e%22%20stroke%3D%22%231e2140%22%20stroke-width%3D%2214%22/%3E%3Cpath%20transform%3D%22translate%28236%20302%29%20scale%28.78%29%22%20d%3D%22M0%2024%20C-36%202%20-44%20-24%20-27%20-38%20C-14%20-48%200%20-40%200%20-27%20C0%20-40%2014%20-48%2027%20-38%20C44%20-24%2036%202%200%2024Z%22%20fill%3D%22%23fff%22/%3E%3Cpath%20d%3D%22M330%20330%20L370%20370%20L432%20290%22%20fill%3D%22none%22%20stroke%3D%22%23ff5a4e%22%20stroke-width%3D%2240%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -268,72 +268,58 @@
     .area-swipe .card-cand.animando { transition: none; }
     .redondo:hover { transform: none; }
   }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--texto-2); line-height: 1.45; }
+  .check input { width: 18px; height: 18px; margin-top: 1px; flex: none; accent-color: var(--roxo); }
+  .check .link { font-size: 13px; text-align: left; }
+  .carregando { padding-block: 120px; text-align: center; color: var(--texto-2); font-size: 15px; }
+  .btn[disabled] { opacity: .65; cursor: progress; }
+  input[disabled] { background: var(--areia); color: var(--texto-2); }
 </style>
 </head>
 <body>
-
 <div id="app"></div>
 <div id="modal"></div>
 <div id="toast" class="toast" hidden></div>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
 <script>
 /* =================================================================
-   MatchWork – protótipo funcional (sem banco e sem servidor)
-   Baseado no Figma "MatchWork – Protótipo". Os dados ficam salvos
-   no navegador (localStorage) e seguem as tabelas do projeto:
-   empresa, candidato e iteracao (status_match 'sim' ou 'não').
+   MatchWork – versão real
+   Dados no Supabase (PostgreSQL + login + arquivos).
+   Tabelas: empresa, candidato, candidato_contato, iteracao.
+   O contato e o currículo só são liberados para empresas com match:
+   essa regra está no próprio banco (Row Level Security).
    ================================================================= */
 
-const CHAVE = 'matchwork-prototipo-v2';
+const SUPABASE_URL = 'https://xzgfhhgbnojdihlmtuzw.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Hdfx9tGYDJCsDCMMY4FlJg_XL3AM2gf'; // chave pública (pode ficar no site)
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const LOGO = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1e2140"/><path d="M120 368 V146 L236 286 L352 146 V300" fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><circle cx="236" cy="300" r="58" fill="#ff5a4e" stroke="#1e2140" stroke-width="14"/><path transform="translate(236 302) scale(.78)" d="M0 24 C-36 2 -44 -24 -27 -38 C-14 -48 0 -40 0 -27 C0 -40 14 -48 27 -38 C44 -24 36 2 0 24Z" fill="#fff"/><path d="M330 330 L370 370 L432 290" fill="none" stroke="#ff5a4e" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-// ---------- Dados de exemplo (fictícios) ----------
-function dadosIniciais() {
-  return {
-    empresa: [
-      { id: 1, nome: 'Padaria Bom Pão', email: 'contato@padariabompao.com', senha: '123456' },
-      { id: 2, nome: 'Café Central', email: 'contato@cafecentral.com', senha: '123456' },
-      { id: 3, nome: 'Mercadinho Sol', email: 'contato@mercadinhosol.com', senha: '123456' }
-    ],
-    candidato: [
-      { id: 1, nome: 'Maria Souza', email: 'maria@exemplo.com', senha: '123456', cargo: 'Auxiliar administrativo',
-        telefone: '(11) 90000-0001', cidade: 'São Paulo', habilidades: ['Excel', 'Atendimento', 'Vendas', 'Organização', 'Word'], curriculo: 'curriculo-maria.pdf' },
-      { id: 2, nome: 'João Silva', email: 'joao@exemplo.com', senha: '123456', cargo: 'Auxiliar administrativo',
-        telefone: '(11) 90000-0002', cidade: 'São Paulo', habilidades: ['Excel', 'Atendimento', 'Vendas', 'Organização', 'WhatsApp Business'], curriculo: 'curriculo-joao.pdf' },
-      { id: 3, nome: 'Ana Paula', email: 'ana@exemplo.com', senha: '123456', cargo: 'Caixa',
-        telefone: '(11) 90000-0003', cidade: 'São Paulo', habilidades: ['Caixa', 'Atendimento', 'Organização'], curriculo: '' },
-      { id: 4, nome: 'Carlos Lima', email: 'carlos@exemplo.com', senha: '123456', cargo: 'Atendente de balcão',
-        telefone: '(11) 90000-0004', cidade: 'São Paulo', habilidades: ['Atendimento', 'Caixa', 'Vendas'], curriculo: '' },
-      { id: 5, nome: 'Beatriz Rocha', email: 'beatriz@exemplo.com', senha: '123456', cargo: 'Repositora',
-        telefone: '(11) 90000-0005', cidade: 'Guarulhos', habilidades: ['Organização', 'Estoque', 'Trabalho em equipe'], curriculo: '' },
-      { id: 6, nome: 'Rafael Costa', email: 'rafael@exemplo.com', senha: '123456', cargo: 'Auxiliar de padaria',
-        telefone: '(11) 90000-0006', cidade: 'São Paulo', habilidades: ['Panificação', 'Higiene alimentar', 'Atendimento'], curriculo: '' }
-    ],
-    iteracao: [
-      { id_empresa: 2, id_candidato: 1, status_match: 'sim', chamado: false },
-      { id_empresa: 3, id_candidato: 1, status_match: 'não', chamado: false }
-    ]
-  };
-}
+// Cards de exemplo só para a página inicial (não são usuários reais)
+const EXEMPLOS = [
+  { nome: 'Maria Souza', cargo: 'Auxiliar administrativo', habilidades: ['Excel', 'Atendimento', 'Vendas', 'Organização'] },
+  { nome: 'João Silva', cargo: 'Auxiliar administrativo', habilidades: ['Excel', 'Atendimento', 'Vendas', 'WhatsApp Business'] },
+  { nome: 'Ana Paula', cargo: 'Caixa', habilidades: ['Caixa', 'Atendimento', 'Organização'] }
+];
 
-// ---------- Armazenamento ----------
-let db = carregar();
-function carregar() {
-  try { const s = localStorage.getItem(CHAVE); if (s) return JSON.parse(s); } catch (e) {}
-  return dadosIniciais();
-}
-function salvar() { try { localStorage.setItem(CHAVE, JSON.stringify(db)); } catch (e) {} }
-const pdfsDaSessao = {}; // id do candidato -> endereço temporário do PDF enviado nesta sessão
-
-// ---------- Estado da tela ----------
+// ---------- Estado ----------
 const est = {
-  tela: 'inicio',      // inicio | cad-candidato | login-candidato | login-empresa | cad-empresa | painel | perfil | ajustes | swipe | matches
-  usuario: null,       // { tipo: 'candidato' | 'empresa', id }
+  tela: 'carregando',
+  usuario: null,        // { tipo: 'candidato' | 'empresa', id, email }
+  perfil: null,         // linha da tabela empresa ou candidato
+  contato: null,        // telefone/e-mail do próprio candidato
   erro: '',
-  rascunho: null,      // dados do formulário de cadastro/edição do candidato
+  ocupado: false,
+  rascunho: null,
   filtros: { cargo: '', habilidades: [], cidade: '' },
   filtrosAplicados: { cargo: '', habilidades: [], cidade: '' },
-  demo: 0              // índice do card de exemplo na landing
+  demo: 0,
+  // dados carregados do banco
+  candidatos: [],       // vitrine (empresa)
+  minhasIteracoes: [],  // da empresa logada
+  matches: [],          // empresa: { it, c, contato }
+  novidades: []         // candidato: iterações recebidas com nome da empresa
 };
 
 // ---------- Utilidades ----------
@@ -343,29 +329,140 @@ const primeiroNome = n => (n || '').trim().split(/\s+/)[0] || '';
 const normal = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 const chipsHtml = lista => `<div class="chips">${(lista || []).map(h => `<span class="chip">${esc(h)}</span>`).join('')}</div>`;
 const linkWhats = tel => { const d = String(tel || '').replace(/\D/g, ''); return d ? `https://wa.me/55${d}` : ''; };
-function eu() {
-  if (!est.usuario) return null;
-  return (est.usuario.tipo === 'empresa' ? db.empresa : db.candidato).find(x => x.id === est.usuario.id) || null;
-}
+const listaHab = txt => String(txt || '').split(',').map(s => s.trim()).filter(Boolean);
+
 let toastTimer;
 function toast(t) {
   const el = document.getElementById('toast');
   el.textContent = t; el.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, 2400);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, 2800);
 }
-function ir(tela) { est.tela = tela; est.erro = ''; fecharModal(); render(); window.scrollTo(0, 0); }
+
+function traduzErro(e) {
+  const m = String((e && (e.message || e.error_description)) || e || '');
+  if (/already registered|already been registered|already exists/i.test(m)) return 'Já existe uma conta com esse e-mail. Faça login.';
+  if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+  if (/Password should be at least|password.*characters/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (/valid email|invalid format|Unable to validate email|email address.*invalid/i.test(m)) return 'Digite um e-mail válido.';
+  if (/Email not confirmed/i.test(m)) return 'Confirme seu e-mail antes de entrar (veja sua caixa de entrada).';
+  if (/rate limit|too many/i.test(m)) return 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.';
+  if (/Failed to fetch|NetworkError|network/i.test(m)) return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.';
+  if (/maximum allowed size|too large|Payload too large/i.test(m)) return 'O PDF tem mais de 5 MB. Envie um arquivo menor.';
+  return 'Não foi possível concluir: ' + m;
+}
+
+function erroNaTela(e) { console.error(e); est.erro = traduzErro(e); est.ocupado = false; render(); }
+function erroToast(e) { console.error(e); toast(traduzErro(e)); }
+
+// ---------- Sessão e perfil ----------
+async function descobrirPerfil(user) {
+  const [emp, cand] = await Promise.all([
+    sb.from('empresa').select('*').eq('id', user.id).maybeSingle(),
+    sb.from('candidato').select('*').eq('id', user.id).maybeSingle()
+  ]);
+  if (emp.error) throw emp.error;
+  if (cand.error) throw cand.error;
+  if (emp.data) return { tipo: 'empresa', perfil: emp.data };
+  if (cand.data) {
+    const ct = await sb.from('candidato_contato').select('telefone,email').eq('id', user.id).maybeSingle();
+    return { tipo: 'candidato', perfil: cand.data, contato: ct.data || {} };
+  }
+  return null; // conta criada, mas cadastro não terminou
+}
+
+async function entrarComUsuario(user, tipoEscolhido) {
+  const p = await descobrirPerfil(user);
+  if (!p) {
+    // conta existe sem perfil: completar o cadastro com a mesma sessão
+    est.usuario = null;
+    est.rascunho = null;
+    est.erro = 'Sua conta foi criada, mas o cadastro não terminou. Complete os dados abaixo.';
+    est.emailPendente = user.email;
+    est.tela = tipoEscolhido === 'empresa' ? 'cad-empresa' : 'cad-candidato';
+    render();
+    return;
+  }
+  est.usuario = { tipo: p.tipo, id: user.id, email: user.email };
+  est.perfil = p.perfil;
+  est.contato = p.contato || null;
+  est.rascunho = null;
+  est.filtros = { cargo: '', habilidades: [], cidade: '' };
+  est.filtrosAplicados = { cargo: '', habilidades: [], cidade: '' };
+  await ir(p.tipo === 'empresa' ? 'swipe' : 'painel');
+}
+
+async function sair() {
+  await sb.auth.signOut();
+  est.usuario = null; est.perfil = null; est.contato = null; est.rascunho = null;
+  await ir('inicio');
+  toast('Você saiu');
+}
+
+// ---------- Carregamento por tela ----------
+async function carregarTela(tela) {
+  if (!est.usuario) return;
+  const uid = est.usuario.id;
+  if (tela === 'swipe') {
+    const [cands, its] = await Promise.all([
+      sb.from('candidato').select('id,nome,cargo,cidade,habilidades,curriculo_nome').order('criado_em', { ascending: false }),
+      sb.from('iteracao').select('id_candidato,status_match,chamado').eq('id_empresa', uid)
+    ]);
+    if (cands.error) throw cands.error;
+    if (its.error) throw its.error;
+    est.candidatos = cands.data || [];
+    est.minhasIteracoes = its.data || [];
+  }
+  if (tela === 'matches') {
+    const its = await sb.from('iteracao')
+      .select('id_candidato,chamado,criado_em,candidato(id,nome,cargo,cidade,habilidades,curriculo_path,curriculo_nome)')
+      .eq('id_empresa', uid).eq('status_match', 'sim').order('criado_em', { ascending: false });
+    if (its.error) throw its.error;
+    const ids = (its.data || []).map(i => i.id_candidato);
+    let contatos = [];
+    if (ids.length) {
+      const ct = await sb.from('candidato_contato').select('id,telefone,email').in('id', ids);
+      if (ct.error) throw ct.error;
+      contatos = ct.data || [];
+    }
+    est.matches = (its.data || []).filter(i => i.candidato).map(i => ({
+      it: i, c: i.candidato, contato: contatos.find(x => x.id === i.id_candidato) || {}
+    }));
+  }
+  if (tela === 'painel') {
+    const its = await sb.from('iteracao').select('status_match,criado_em,empresa(nome)')
+      .eq('id_candidato', uid).order('criado_em', { ascending: false });
+    if (its.error) throw its.error;
+    est.novidades = its.data || [];
+  }
+}
+
+async function ir(tela) {
+  est.tela = tela; est.erro = ''; est.ocupado = false;
+  fecharModal();
+  const precisaDados = ['swipe', 'matches', 'painel'].includes(tela) && est.usuario;
+  if (precisaDados) {
+    document.getElementById('app').innerHTML = telaCarregando();
+    try { await carregarTela(tela); } catch (e) { erroToast(e); }
+  }
+  render();
+  window.scrollTo(0, 0);
+}
 
 // ---------- Barra superior ----------
 function topo(itens) {
+  const destino = est.usuario ? (est.usuario.tipo === 'empresa' ? 'swipe' : 'painel') : 'inicio';
   return `<header class="topo gutter"><div class="wrap">
-    <button class="marca" data-ir="${est.usuario ? (est.usuario.tipo === 'empresa' ? 'swipe' : 'painel') : 'inicio'}">${LOGO}MatchWork</button>
+    <button class="marca" data-ir="${destino}">${LOGO}MatchWork</button>
     <nav class="nav">${itens}</nav></div></header>`;
+}
+function telaCarregando() { return `<div class="carregando" role="status">Carregando…</div>`; }
+function rodape() {
+  return `<p class="rodape-proto">MatchWork · projeto de extensão universitária · <button class="link" data-termos style="font-size:12.5px">Termos e privacidade</button></p>`;
 }
 
 // ================= LANDING =================
 function telaInicio() {
-  const exemplos = db.candidato.slice(0, 4);
-  const c = exemplos[est.demo % exemplos.length] || dadosIniciais().candidato[1];
+  const c = EXEMPLOS[est.demo % EXEMPLOS.length];
   return `
   ${topo(`
     <button class="so-largo" data-rolar="como">Como funciona</button>
@@ -386,8 +483,8 @@ function telaInicio() {
         <article class="card-cand" aria-label="Exemplo de card da vitrine">
           <div class="avatar">${esc(iniciais(c.nome))}</div>
           <h3>${esc(c.nome)}</h3>
-          <p class="cargo">${esc(c.cargo)}</p>
-          ${chipsHtml(c.habilidades.slice(0, 4))}
+          <p class="cargo">${esc(c.cargo)} · exemplo</p>
+          ${chipsHtml(c.habilidades)}
           <div class="espaco"></div>
           <p class="rodape">Contato e currículo liberam no match</p>
           <div class="mini-acoes">
@@ -419,17 +516,21 @@ function telaInicio() {
       <h2>Pronto para o primeiro match?</h2>
       <button class="btn" data-ir="cad-candidato">Criar perfil grátis</button>
     </div>
-    ${rodapeProto()}
+    ${rodape()}
   </div></main>`;
 }
 
 // ================= CANDIDATO: cadastro / edição =================
-function novoRascunho(c) {
-  return c ? { nome: c.nome, email: c.email, senha: c.senha, cargo: c.cargo, telefone: c.telefone, cidade: c.cidade || '',
-               habilidades: c.habilidades.join(', '), curriculo: c.curriculo || '', pdf: pdfsDaSessao[c.id] || '' }
-           : { nome: '', email: '', senha: '', cargo: '', telefone: '', cidade: '', habilidades: '', curriculo: '', pdf: '' };
+function novoRascunho(editando) {
+  if (editando && est.perfil) {
+    const c = est.perfil, ct = est.contato || {};
+    return { nome: c.nome || '', cargo: c.cargo || '', telefone: ct.telefone || '', cidade: c.cidade || '',
+             habilidades: (c.habilidades || []).join(', '), email: est.usuario.email, senha: '',
+             curriculo_nome: c.curriculo_nome || '', arquivo: null, removerPdf: false, aceite: true };
+  }
+  return { nome: '', cargo: '', telefone: '', cidade: '', habilidades: '', email: est.emailPendente || '', senha: '',
+           curriculo_nome: '', arquivo: null, removerPdf: false, aceite: false };
 }
-const listaHab = txt => String(txt || '').split(',').map(s => s.trim()).filter(Boolean);
 
 function previaCard(r) {
   return `<article class="card-cand pequeno" id="previa">
@@ -440,41 +541,51 @@ function previaCard(r) {
   </article>`;
 }
 
+function caixaAceite(marcado) {
+  return `<label class="check"><input type="checkbox" id="aceite" ${marcado ? 'checked' : ''}>
+    <span>Li e aceito os <button type="button" class="link" data-termos>termos de uso e a política de privacidade</button>. Autorizo o uso dos meus dados para conectar candidatos e empresas.</span></label>`;
+}
+
 function telaFormCandidato(editando) {
-  if (!est.rascunho) est.rascunho = novoRascunho(editando ? eu() : null);
+  if (!est.rascunho) est.rascunho = novoRascunho(editando);
   const r = est.rascunho;
-  const arquivo = r.curriculo
-    ? `<div class="arquivo-ok"><span>${esc(r.curriculo)} enviado</span><button type="button" class="link-cinza" id="tirar-pdf">Remover</button></div>` : '';
+  const nomeArquivo = r.arquivo ? r.arquivo.name : (r.removerPdf ? '' : r.curriculo_nome);
+  const arquivo = nomeArquivo
+    ? `<div class="arquivo-ok"><span>${esc(nomeArquivo)} ${r.arquivo ? 'pronto para enviar' : 'enviado'}</span><button type="button" class="link-cinza" id="tirar-pdf">Remover</button></div>` : '';
+  const acesso = editando
+    ? `<div class="campo"><label>E-mail de acesso</label><input value="${esc(r.email)}" disabled></div>`
+    : `<div class="duas-col">
+          <div class="campo"><label for="c-email">E-mail (para entrar)</label><input id="c-email" data-r="email" type="email" value="${esc(r.email)}" placeholder="maria@email.com" autocomplete="email"></div>
+          <div class="campo"><label for="c-senha">Senha (mín. 6 caracteres)</label><input id="c-senha" data-r="senha" type="password" value="${esc(r.senha)}" autocomplete="new-password"></div>
+        </div>`;
   const form = `
     <div>
       <h2>${editando ? 'Meu perfil' : 'Crie seu perfil'}</h2>
       <p class="sub">${editando ? 'Atualize seus dados. O card na vitrine muda na hora.' : 'Leva menos de 2 minutos.'}</p>
       <form class="form" id="form-candidato" novalidate>
         ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
-        <div class="campo"><label for="c-nome">Nome</label><input id="c-nome" data-r="nome" value="${esc(r.nome)}" placeholder="Maria Souza" autocomplete="name"></div>
-        <div class="campo"><label for="c-cargo">Cargo desejado</label><input id="c-cargo" data-r="cargo" value="${esc(r.cargo)}" placeholder="Auxiliar administrativo"></div>
+        <div class="campo"><label for="c-nome">Nome</label><input id="c-nome" data-r="nome" value="${esc(r.nome)}" placeholder="Maria Souza" autocomplete="name" maxlength="100"></div>
+        <div class="campo"><label for="c-cargo">Cargo desejado</label><input id="c-cargo" data-r="cargo" value="${esc(r.cargo)}" placeholder="Auxiliar administrativo" maxlength="100"></div>
         <div class="duas-col">
-          <div class="campo"><label for="c-tel">WhatsApp</label><input id="c-tel" data-r="telefone" value="${esc(r.telefone)}" placeholder="(11) 90000-0000" inputmode="tel"></div>
-          <div class="campo"><label for="c-cidade">Cidade</label><input id="c-cidade" data-r="cidade" value="${esc(r.cidade)}" placeholder="São Paulo"></div>
+          <div class="campo"><label for="c-tel">WhatsApp</label><input id="c-tel" data-r="telefone" value="${esc(r.telefone)}" placeholder="(11) 90000-0000" inputmode="tel" maxlength="30"></div>
+          <div class="campo"><label for="c-cidade">Cidade</label><input id="c-cidade" data-r="cidade" value="${esc(r.cidade)}" placeholder="São Paulo" maxlength="100"></div>
         </div>
         <div class="campo"><label for="c-hab">5 habilidades</label><input id="c-hab" data-r="habilidades" value="${esc(r.habilidades)}" placeholder="Excel, Atendimento, Vendas, Organização, Word"><span class="dica">Separe por vírgula. Até 5.</span></div>
-        <div class="duas-col">
-          <div class="campo"><label for="c-email">E-mail (para entrar)</label><input id="c-email" data-r="email" type="email" value="${esc(r.email)}" placeholder="maria@email.com" autocomplete="email"></div>
-          <div class="campo"><label for="c-senha">Senha</label><input id="c-senha" data-r="senha" type="password" value="${esc(r.senha)}" autocomplete="new-password"></div>
-        </div>
+        ${acesso}
         <div class="upload" id="upload">
-          <div><strong>Arraste ou escolha o PDF do currículo</strong><span class="dica">Até 5 MB</span></div>
+          <div><strong>Arraste ou escolha o PDF do currículo</strong><span class="dica">Até 5 MB · só empresas com match podem abrir</span></div>
           <input id="c-pdf" type="file" accept="application/pdf,.pdf" aria-label="Enviar PDF do currículo">
         </div>
         ${arquivo}
-        <button class="btn btn-roxo btn-bloco" type="submit">${editando ? 'Salvar perfil' : 'Publicar perfil'}</button>
+        ${editando ? '' : caixaAceite(r.aceite)}
+        <button class="btn btn-roxo btn-bloco" type="submit" ${est.ocupado ? 'disabled' : ''}>${est.ocupado ? 'Salvando…' : (editando ? 'Salvar perfil' : 'Publicar perfil')}</button>
         ${editando ? '' : `<p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-candidato">Entrar</button></p>`}
       </form>
     </div>
     <div><p class="previa-rot">Seu card na vitrine</p>${previaCard(r)}</div>`;
 
   if (editando) {
-    return `${topoCandidato('perfil')}<main class="gutter"><div class="wrap"><div class="lado-form" style="padding-inline:0">${form}</div>${rodapeProto()}</div></main>`;
+    return `${topoCandidato('perfil')}<main class="gutter"><div class="wrap"><div class="lado-form" style="padding-inline:0">${form}</div>${rodape()}</div></main>`;
   }
   return `<div class="dividida">
     <aside class="painel-roxo">
@@ -485,10 +596,63 @@ function telaFormCandidato(editando) {
   </div>`;
 }
 
-// ================= Login (candidato e empresa) / cadastro de empresa =================
+async function salvarCandidato() {
+  const r = est.rascunho;
+  const editando = est.tela === 'perfil';
+  const hab = listaHab(r.habilidades);
+  if (!r.nome.trim()) throw new Error('__Preencha seu nome.');
+  if (hab.length > 5) throw new Error(`__Você informou ${hab.length} habilidades. Escolha no máximo 5.`);
+  if (!editando) {
+    if (!r.email.trim() || !r.senha) throw new Error('__Preencha e-mail e senha.');
+    if (r.senha.length < 6) throw new Error('__A senha precisa ter pelo menos 6 caracteres.');
+    if (!r.aceite) throw new Error('__Para criar o perfil, aceite os termos de uso e a política de privacidade.');
+  }
+
+  // 1. Conta de acesso
+  let uid, email;
+  if (editando) { uid = est.usuario.id; email = est.usuario.email; }
+  else {
+    const atual = (await sb.auth.getSession()).data.session;
+    if (atual && normal(atual.user.email) === normal(r.email)) { uid = atual.user.id; email = atual.user.email; }
+    else {
+      const { data, error } = await sb.auth.signUp({ email: r.email.trim(), password: r.senha, options: { data: { tipo: 'candidato' } } });
+      if (error) throw error;
+      if (!data.session) throw new Error('__Enviamos um e-mail de confirmação. Confirme e depois faça login para terminar o cadastro.');
+      uid = data.user.id; email = data.user.email;
+    }
+  }
+
+  // 2. Currículo (PDF)
+  let curriculo_path = editando ? est.perfil.curriculo_path : null;
+  let curriculo_nome = editando ? est.perfil.curriculo_nome : null;
+  if (r.arquivo) {
+    const caminho = `${uid}/curriculo.pdf`;
+    const up = await sb.storage.from('curriculos').upload(caminho, r.arquivo, { upsert: true, contentType: 'application/pdf' });
+    if (up.error) throw up.error;
+    curriculo_path = caminho; curriculo_nome = r.arquivo.name;
+  } else if (r.removerPdf && curriculo_path) {
+    await sb.storage.from('curriculos').remove([curriculo_path]);
+    curriculo_path = null; curriculo_nome = null;
+  }
+
+  // 3. Perfil e contato
+  const perfil = { id: uid, nome: r.nome.trim(), cargo: r.cargo.trim() || null, cidade: r.cidade.trim() || null,
+                   habilidades: hab, curriculo_path, curriculo_nome };
+  if (!editando) perfil.aceite_termos = new Date().toISOString();
+  const p = await sb.from('candidato').upsert(perfil).select().single();
+  if (p.error) throw p.error;
+  const ct = await sb.from('candidato_contato').upsert({ id: uid, telefone: r.telefone.trim() || null, email }).select().single();
+  if (ct.error) throw ct.error;
+
+  est.usuario = { tipo: 'candidato', id: uid, email };
+  est.perfil = p.data; est.contato = ct.data; est.rascunho = null; est.emailPendente = '';
+  await ir('painel');
+  toast(editando ? 'Perfil salvo' : 'Perfil publicado na vitrine');
+}
+
+// ================= Login / cadastro de empresa =================
 function telaLogin(tipo) {
   const ehEmpresa = tipo === 'empresa';
-  const demo = ehEmpresa ? 'contato@padariabompao.com' : 'maria@exemplo.com';
   return `<div class="dividida">
     <aside class="painel-roxo">
       <button class="marca" data-ir="inicio">${LOGO}MatchWork</button>
@@ -499,14 +663,12 @@ function telaLogin(tipo) {
         <h2>${ehEmpresa ? 'Entrar como empresa' : 'Entrar como candidato'}</h2>
         <form class="form" id="form-login" data-tipo="${tipo}" novalidate>
           ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
-          <div class="campo"><label for="l-email">E-mail</label><input id="l-email" type="email" placeholder="${demo}" autocomplete="email"></div>
+          <div class="campo"><label for="l-email">E-mail</label><input id="l-email" type="email" autocomplete="email" value="${esc(est.loginEmail || '')}"></div>
           <div class="campo"><label for="l-senha">Senha</label><input id="l-senha" type="password" placeholder="••••••••" autocomplete="current-password"></div>
-          <button class="btn btn-roxo btn-bloco" type="submit">Entrar</button>
+          <button class="btn btn-roxo btn-bloco" type="submit" ${est.ocupado ? 'disabled' : ''}>${est.ocupado ? 'Entrando…' : 'Entrar'}</button>
           <p class="centro dica">${ehEmpresa
             ? `Primeira vez? <button type="button" class="link" data-ir="cad-empresa">Cadastrar minha empresa</button>`
             : `Primeira vez? <button type="button" class="link" data-ir="cad-candidato">Criar meu perfil</button>`}</p>
-          <div class="demo-contas">Conta de demonstração: <code>${demo}</code> · senha <code>123456</code>
-            <br><button type="button" class="link" data-preencher="${demo}">Preencher automaticamente</button></div>
           <p class="centro"><button type="button" class="link-cinza" data-ir="${ehEmpresa ? 'login-candidato' : 'login-empresa'}">${ehEmpresa ? 'Sou candidato' : 'Sou empresa'}</button></p>
         </form>
       </div>
@@ -515,6 +677,7 @@ function telaLogin(tipo) {
 }
 
 function telaCadEmpresa() {
+  const pendente = est.emailPendente || '';
   return `<div class="dividida">
     <aside class="painel-roxo">
       <button class="marca" data-ir="inicio">${LOGO}MatchWork</button>
@@ -525,10 +688,11 @@ function telaCadEmpresa() {
         <h2>Cadastrar minha empresa</h2>
         <form class="form" id="form-cad-empresa" novalidate>
           ${est.erro ? `<div class="erro" role="alert">${esc(est.erro)}</div>` : ''}
-          <div class="campo"><label for="e-nome">Nome da empresa</label><input id="e-nome" placeholder="Padaria Bom Pão"></div>
-          <div class="campo"><label for="e-email">E-mail</label><input id="e-email" type="email" placeholder="contato@empresa.com"></div>
-          <div class="campo"><label for="e-senha">Senha</label><input id="e-senha" type="password" autocomplete="new-password"></div>
-          <button class="btn btn-roxo btn-bloco" type="submit">Cadastrar e ver candidatos</button>
+          <div class="campo"><label for="e-nome">Nome da empresa</label><input id="e-nome" placeholder="Padaria Bom Pão" maxlength="100"></div>
+          <div class="campo"><label for="e-email">E-mail</label><input id="e-email" type="email" placeholder="contato@empresa.com" value="${esc(pendente)}" autocomplete="email"></div>
+          <div class="campo"><label for="e-senha">Senha (mín. 6 caracteres)</label><input id="e-senha" type="password" autocomplete="new-password"></div>
+          ${caixaAceite(false)}
+          <button class="btn btn-roxo btn-bloco" type="submit" ${est.ocupado ? 'disabled' : ''}>${est.ocupado ? 'Cadastrando…' : 'Cadastrar e ver candidatos'}</button>
           <p class="centro dica">Já tem conta? <button type="button" class="link" data-ir="login-empresa">Entrar</button></p>
         </form>
       </div>
@@ -536,42 +700,64 @@ function telaCadEmpresa() {
   </div>`;
 }
 
+async function cadastrarEmpresa(nome, email, senha, aceite) {
+  if (!nome || !email || !senha) throw new Error('__Preencha nome, e-mail e senha.');
+  if (senha.length < 6) throw new Error('__A senha precisa ter pelo menos 6 caracteres.');
+  if (!aceite) throw new Error('__Para cadastrar a empresa, aceite os termos de uso e a política de privacidade.');
+  let uid, mail;
+  const atual = (await sb.auth.getSession()).data.session;
+  if (atual && normal(atual.user.email) === normal(email)) { uid = atual.user.id; mail = atual.user.email; }
+  else {
+    const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { tipo: 'empresa' } } });
+    if (error) throw error;
+    if (!data.session) throw new Error('__Enviamos um e-mail de confirmação. Confirme e depois faça login para terminar o cadastro.');
+    uid = data.user.id; mail = data.user.email;
+  }
+  const e = await sb.from('empresa').upsert({ id: uid, nome }).select().single();
+  if (e.error) throw e.error;
+  est.usuario = { tipo: 'empresa', id: uid, email: mail };
+  est.perfil = e.data; est.emailPendente = '';
+  await ir('swipe');
+  toast('Empresa cadastrada');
+}
+
 // ================= CANDIDATO: painel =================
 function topoCandidato(ativo) {
-  const c = eu();
   return topo(`
     <button class="${ativo === 'painel' ? 'ativo' : ''}" data-ir="painel">Início</button>
     <button class="${ativo === 'perfil' ? 'ativo' : ''}" data-ir="perfil">Meu perfil</button>
     <button class="${ativo === 'ajustes' ? 'ativo' : ''}" data-ir="ajustes">Ajustes</button>
-    <span class="nome so-largo">${esc(c ? c.nome : '')}</span>`);
+    <span class="nome so-largo">${esc(est.perfil ? est.perfil.nome : '')}</span>`);
 }
 
 function telaPainel() {
-  const c = eu();
-  const minhas = db.iteracao.filter(i => i.id_candidato === c.id);
-  const matches = minhas.filter(i => i.status_match === 'sim');
-  const campos = [c.cargo, c.telefone, c.cidade, c.habilidades.length ? 'ok' : '', c.curriculo];
+  const c = est.perfil, ct = est.contato || {};
+  const its = est.novidades;
+  const matches = its.filter(i => i.status_match === 'sim');
+  const campos = [c.cargo, ct.telefone, c.cidade, (c.habilidades || []).length ? 'ok' : '', c.curriculo_path];
   const completo = Math.round(campos.filter(Boolean).length / campos.length * 100);
-  const novidades = minhas.slice().reverse().map(i => {
-    const e = db.empresa.find(x => x.id === i.id_empresa);
-    if (!e) return '';
+  const novidades = its.map(i => {
+    const nome = i.empresa ? i.empresa.nome : 'Uma empresa';
     return i.status_match === 'sim'
-      ? `<div class="novidade"><strong>${esc(e.nome)}</strong> deu match com você. Fique de olho no WhatsApp.</div>`
-      : `<div class="novidade">${esc(e.nome)} visualizou seu perfil.</div>`;
+      ? `<div class="novidade"><strong>${esc(nome)}</strong> deu match com você. Fique de olho no WhatsApp.</div>`
+      : `<div class="novidade">${esc(nome)} visualizou seu perfil.</div>`;
   }).join('');
   return `${topoCandidato('painel')}
   <main class="gutter"><div class="wrap pagina" style="max-width:1200px">
     <h1>Olá, ${esc(primeiroNome(c.nome))}</h1>
     <div class="ativo-banner">Seu perfil está ativo e visível para as empresas</div>
     <div class="numeros">
-      <div class="numero"><span>Empresas viram</span><strong>${minhas.length}</strong></div>
+      <div class="numero"><span>Empresas viram</span><strong>${its.length}</strong></div>
       <div class="numero"><span>Matches</span><strong>${matches.length}</strong></div>
       <div class="numero"><span>Perfil completo</span><strong>${completo}%</strong></div>
     </div>
     <h2 class="sec-titulo">Novidades</h2>
     <div class="novidades">${novidades || '<div class="novidade">Nenhuma empresa avaliou seu perfil ainda. Ele já está na vitrine, então é só aguardar.</div>'}</div>
-    <div style="margin-top:28px"><button class="btn btn-claro" style="width:200px" data-sair>Sair</button></div>
-    ${rodapeProto()}
+    <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-claro" style="width:200px" data-recarregar>Atualizar</button>
+      <button class="btn btn-claro" style="width:200px" data-sair>Sair</button>
+    </div>
+    ${rodape()}
   </div></main>`;
 }
 
@@ -580,43 +766,59 @@ function telaAjustes() {
   return `${ehEmpresa ? topoEmpresa('') : topoCandidato('ajustes')}
   <main class="gutter"><div class="wrap pagina" style="max-width:720px">
     <h1>Ajustes</h1>
-    <p class="sub">Opções do protótipo para a apresentação.</p>
+    <p class="sub">Conta: ${esc(est.usuario.email)}</p>
     <div class="novidades" style="margin-top:28px">
       <div class="novidade" style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap">
-        <span>Voltar todos os cadastros e matches ao estado inicial.</span>
-        <button class="btn btn-claro btn-sm" data-restaurar>Restaurar dados de exemplo</button>
-      </div>
-      <div class="novidade" style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap">
-        <span>Encerrar a sessão neste navegador.</span>
+        <span>Encerrar a sessão neste aparelho.</span>
         <button class="btn btn-claro btn-sm" data-sair>Sair</button>
       </div>
+      <div class="novidade" id="caixa-excluir" style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap">
+        <span>Excluir ${ehEmpresa ? 'o perfil da empresa e os matches' : 'meu perfil, contato, currículo e matches'} (LGPD).</span>
+        <button class="btn btn-claro btn-sm" data-excluir>Excluir meus dados</button>
+      </div>
     </div>
+    ${rodape()}
   </div></main>`;
+}
+
+async function excluirDados() {
+  const uid = est.usuario.id;
+  if (est.usuario.tipo === 'candidato') {
+    if (est.perfil && est.perfil.curriculo_path) await sb.storage.from('curriculos').remove([est.perfil.curriculo_path]);
+    const r = await sb.from('candidato').delete().eq('id', uid); // apaga também contato e matches (cascade)
+    if (r.error) throw r.error;
+  } else {
+    const r = await sb.from('empresa').delete().eq('id', uid);
+    if (r.error) throw r.error;
+  }
+  await sb.auth.signOut();
+  est.usuario = null; est.perfil = null; est.contato = null;
+  await ir('inicio');
+  toast('Seus dados foram excluídos');
 }
 
 // ================= EMPRESA: swipe =================
 function topoEmpresa(ativo) {
-  const e = eu();
   return topo(`
     <button class="${ativo === 'swipe' ? 'ativo' : ''}" data-ir="swipe">Candidatos</button>
     <button class="${ativo === 'matches' ? 'ativo' : ''}" data-ir="matches">Meus matches</button>
-    <button data-ir="ajustes">${esc(e ? e.nome : '')}</button>`);
+    <button data-ir="ajustes">${esc(est.perfil ? est.perfil.nome : '')}</button>`);
 }
 
 function todasHabilidades() {
   const cont = {};
-  db.candidato.forEach(c => c.habilidades.forEach(h => cont[h] = (cont[h] || 0) + 1));
-  return Object.keys(cont).sort((a, b) => cont[b] - cont[a] || a.localeCompare(b)).slice(0, 8);
+  est.candidatos.forEach(c => (c.habilidades || []).forEach(h => cont[h] = (cont[h] || 0) + 1));
+  return Object.keys(cont).sort((a, b) => cont[b] - cont[a] || a.localeCompare(b)).slice(0, 10);
 }
 
 function filaDeCandidatos() {
-  const idEmp = est.usuario.id;
   const f = est.filtrosAplicados;
-  return db.candidato.filter(c => {
-    if (db.iteracao.some(i => i.id_empresa === idEmp && i.id_candidato === c.id)) return false;
+  const avaliados = new Set(est.minhasIteracoes.map(i => i.id_candidato));
+  return est.candidatos.filter(c => {
+    if (avaliados.has(c.id)) return false;
     if (f.cargo && !normal(c.cargo).includes(normal(f.cargo))) return false;
     if (f.cidade && !normal(c.cidade).includes(normal(f.cidade))) return false;
-    if (f.habilidades.length && !f.habilidades.some(h => c.habilidades.includes(h))) return false;
+    if (f.habilidades.length && !f.habilidades.some(h => (c.habilidades || []).includes(h))) return false;
     return true;
   });
 }
@@ -628,10 +830,10 @@ function telaSwipe() {
   const temFiltro = est.filtrosAplicados.cargo || est.filtrosAplicados.cidade || est.filtrosAplicados.habilidades.length;
   const centro = c ? `
       <p class="contador">Candidato 1 de ${fila.length}</p>
-      <article class="card-cand" id="card" data-id="${c.id}" tabindex="0" aria-label="Card de ${esc(c.nome)}. Use as setas: esquerda descarta, direita dá match.">
+      <article class="card-cand" id="card" data-id="${esc(c.id)}" tabindex="0" aria-label="Card de ${esc(c.nome)}. Use as setas: esquerda descarta, direita dá match.">
         <div class="avatar">${esc(iniciais(c.nome))}</div>
         <h3>${esc(c.nome)}</h3>
-        <p class="cargo">${esc(c.cargo)}${c.cidade ? ` · ${esc(c.cidade)}` : ''}</p>
+        <p class="cargo">${esc(c.cargo || 'Cargo não informado')}${c.cidade ? ` · ${esc(c.cidade)}` : ''}</p>
         <p class="rot">Habilidades</p>
         ${chipsHtml(c.habilidades)}
         <div class="espaco"></div>
@@ -643,9 +845,9 @@ function telaSwipe() {
       </div>
       <p class="legenda">Esquerda descarta · direita dá match</p>`
     : `<div class="vazio">
-        <h3>${temFiltro ? 'Nenhum candidato com esses filtros' : 'Você viu todos os candidatos'}</h3>
+        <h3>${temFiltro ? 'Nenhum candidato com esses filtros' : (est.candidatos.length ? 'Você viu todos os candidatos' : 'Ainda não há candidatos cadastrados')}</h3>
         <p>${temFiltro ? 'Tente remover alguma habilidade ou mudar o cargo.' : 'Quando novas pessoas se cadastrarem, elas aparecem aqui.'}</p>
-        ${temFiltro ? '<button class="btn btn-claro" data-limpar>Limpar filtros</button>' : '<button class="btn btn-roxo" data-ir="matches">Ver meus matches</button>'}
+        ${temFiltro ? '<button class="btn btn-claro" data-limpar>Limpar filtros</button>' : '<button class="btn btn-claro" data-recarregar>Atualizar</button> <button class="btn btn-roxo" data-ir="matches">Ver meus matches</button>'}
       </div>`;
   return `${topoEmpresa('swipe')}
   <div class="swipe">
@@ -653,7 +855,7 @@ function telaSwipe() {
       <h2>Filtros</h2>
       <div class="campo"><label for="f-cargo">Cargo</label><input id="f-cargo" value="${esc(f.cargo)}" placeholder="Atendente de balcão"></div>
       <div class="campo"><label>Habilidades</label>
-        <div class="chips">${todasHabilidades().map(h => `<button type="button" class="chip" data-hab="${esc(h)}" aria-pressed="${f.habilidades.includes(h)}">${esc(h)}</button>`).join('')}</div>
+        <div class="chips">${todasHabilidades().map(h => `<button type="button" class="chip" data-hab="${esc(h)}" aria-pressed="${f.habilidades.includes(h)}">${esc(h)}</button>`).join('') || '<span class="dica">Aparecem conforme os candidatos se cadastram.</span>'}</div>
       </div>
       <div class="campo"><label for="f-cidade">Cidade</label><input id="f-cidade" value="${esc(f.cidade)}" placeholder="São Paulo"></div>
       <button class="btn btn-roxo btn-bloco" data-aplicar>Aplicar filtros</button>
@@ -663,16 +865,19 @@ function telaSwipe() {
   </div>`;
 }
 
-function decidir(idCand, status) {
-  const idEmp = est.usuario.id;
-  // RN13: uma única interação por empresa e candidato
-  if (!db.iteracao.some(i => i.id_empresa === idEmp && i.id_candidato === idCand)) {
-    db.iteracao.push({ id_empresa: idEmp, id_candidato: idCand, status_match: status, chamado: false });
-    salvar();
-  }
-  if (status === 'sim') abrirMatch(idCand);
-  else toast('Candidato descartado');
-  render();
+let decidindo = false;
+async function decidir(idCand, status) {
+  if (decidindo) return;
+  decidindo = true;
+  try {
+    const r = await sb.from('iteracao').insert({ id_empresa: est.usuario.id, id_candidato: idCand, status_match: status });
+    if (r.error && r.error.code !== '23505') throw r.error; // 23505 = já avaliado (RN13)
+    est.minhasIteracoes.push({ id_candidato: idCand, status_match: status, chamado: false });
+    render();
+    if (status === 'sim') await abrirMatch(idCand);
+    else toast('Candidato descartado');
+  } catch (e) { erroToast(e); render(); }
+  finally { decidindo = false; }
 }
 
 function animarSaida(dir, depois) {
@@ -697,7 +902,7 @@ function ligarArraste() {
   const soltar = () => {
     if (x0 === null) return;
     x0 = null; card.classList.remove('arrastando');
-    const id = Number(card.dataset.id);
+    const id = card.dataset.id;
     if (dx > 110) animarSaida(1, () => decidir(id, 'sim'));
     else if (dx < -110) animarSaida(-1, () => decidir(id, 'não'));
     else { card.classList.add('animando'); card.style.transform = ''; setTimeout(() => card.classList.remove('animando'), 300); }
@@ -706,77 +911,107 @@ function ligarArraste() {
   card.addEventListener('pointercancel', soltar);
 }
 
-// ================= Modais: match e currículo =================
-function fecharModal() { document.getElementById('modal').innerHTML = ''; }
+// ================= Modais =================
+function fecharModal() { const m = document.getElementById('modal'); if (m) m.innerHTML = ''; }
 function abrirModal(html) {
   const m = document.getElementById('modal');
   m.innerHTML = `<div class="fundo-modal" data-fundo><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
   m.querySelectorAll('[data-fechar]').forEach(b => b.onclick = fecharModal);
   m.querySelector('[data-fundo]').onclick = ev => { if (ev.target.hasAttribute('data-fundo')) fecharModal(); };
-  m.querySelectorAll('[data-whats]').forEach(a => a.addEventListener('click', () => marcarChamado(Number(a.dataset.whats))));
-  m.querySelectorAll('[data-curriculo]').forEach(b => b.onclick = () => abrirCurriculo(Number(b.dataset.curriculo)));
+  m.querySelectorAll('[data-whats]').forEach(a => a.addEventListener('click', () => marcarChamado(a.dataset.whats)));
+  m.querySelectorAll('[data-curriculo]').forEach(b => b.onclick = () => abrirCurriculo(b.dataset.curriculo));
   const foco = m.querySelector('.btn, button'); if (foco) foco.focus();
 }
 
-function botaoWhats(c, classe) {
-  const url = linkWhats(c.telefone);
+function botaoWhats(id, telefone, classe) {
+  const url = linkWhats(telefone);
   return url
-    ? `<a class="btn ${classe}" href="${url}" target="_blank" rel="noopener" data-whats="${c.id}">Chamar no WhatsApp</a>`
-    : `<button class="btn ${classe}" disabled>Sem WhatsApp</button>`;
+    ? `<a class="btn ${classe}" href="${url}" target="_blank" rel="noopener" data-whats="${esc(id)}">Chamar no WhatsApp</a>`
+    : `<button class="btn ${classe}" disabled>Sem WhatsApp cadastrado</button>`;
 }
 
-function abrirMatch(idCand) {
-  const c = db.candidato.find(x => x.id === idCand);
+async function buscarCandidatoCompleto(idCand) {
+  const [c, ct] = await Promise.all([
+    sb.from('candidato').select('id,nome,cargo,cidade,habilidades,curriculo_path,curriculo_nome').eq('id', idCand).single(),
+    sb.from('candidato_contato').select('telefone,email').eq('id', idCand).maybeSingle()
+  ]);
+  if (c.error) throw c.error;
+  return { c: c.data, contato: ct.data || {} };
+}
+
+async function abrirMatch(idCand) {
+  const { c, contato } = await buscarCandidatoCompleto(idCand);
   abrirModal(`
     <div class="icone" aria-hidden="true">♥</div>
     <h2>Deu match</h2>
     <p class="sub">${esc(primeiroNome(c.nome))} está disponível para conversar</p>
-    <div class="pessoa"><div class="avatar">${esc(iniciais(c.nome))}</div><div><strong>${esc(c.nome)}</strong><span>${esc(c.cargo)}</span></div></div>
-    ${botaoWhats(c, 'btn-verde')}
-    <button class="btn btn-claro" data-curriculo="${c.id}">Ver currículo completo</button>
-    <p class="dica">WhatsApp: <span style="user-select:all">${esc(c.telefone || 'não informado')}</span></p>
+    <div class="pessoa"><div class="avatar">${esc(iniciais(c.nome))}</div><div><strong>${esc(c.nome)}</strong><span>${esc(c.cargo || '')}</span></div></div>
+    ${botaoWhats(c.id, contato.telefone, 'btn-verde')}
+    <button class="btn btn-claro" data-curriculo="${esc(c.id)}">Ver currículo completo</button>
+    <p class="dica">WhatsApp: <span style="user-select:all">${esc(contato.telefone || 'não informado')}</span></p>
     <button class="link-cinza" data-fechar>Continuar vendo candidatos</button>`);
 }
 
-function abrirCurriculo(idCand) {
-  const c = db.candidato.find(x => x.id === idCand);
-  const pdf = pdfsDaSessao[c.id];
-  abrirModal(`
-    <div class="curriculo">
-      <div class="pessoa" style="margin:0"><div class="avatar">${esc(iniciais(c.nome))}</div><div><strong>${esc(c.nome)}</strong><span>${esc(c.cargo)}</span></div></div>
-      <dl>
-        <dt>WhatsApp</dt><dd>${esc(c.telefone || 'Não informado')}</dd>
-        <dt>E-mail</dt><dd>${esc(c.email)}</dd>
-        <dt>Cidade</dt><dd>${esc(c.cidade || 'Não informada')}</dd>
-        <dt>Habilidades</dt><dd>${esc(c.habilidades.join(', ') || 'Não informadas')}</dd>
-        <dt>Currículo</dt><dd>${c.curriculo ? esc(c.curriculo) : 'Nenhum PDF enviado'}</dd>
-      </dl>
-      ${pdf ? `<a class="btn btn-roxo" href="${pdf}" target="_blank" rel="noopener">Abrir PDF</a>`
-            : (c.curriculo ? '<p class="dica">No protótipo, o PDF só abre na mesma sessão em que foi enviado. Os perfis de exemplo mostram apenas o nome do arquivo.</p>' : '')}
-      <button class="btn btn-claro" data-fechar>Fechar</button>
-    </div>`);
+async function abrirCurriculo(idCand) {
+  try {
+    const { c, contato } = await buscarCandidatoCompleto(idCand);
+    let urlPdf = '';
+    if (c.curriculo_path) {
+      const assinado = await sb.storage.from('curriculos').createSignedUrl(c.curriculo_path, 600);
+      if (!assinado.error) urlPdf = assinado.data.signedUrl;
+    }
+    abrirModal(`
+      <div class="curriculo">
+        <div class="pessoa" style="margin:0"><div class="avatar">${esc(iniciais(c.nome))}</div><div><strong>${esc(c.nome)}</strong><span>${esc(c.cargo || '')}</span></div></div>
+        <dl>
+          <dt>WhatsApp</dt><dd>${esc(contato.telefone || 'Não informado')}</dd>
+          <dt>E-mail</dt><dd>${esc(contato.email || 'Não informado')}</dd>
+          <dt>Cidade</dt><dd>${esc(c.cidade || 'Não informada')}</dd>
+          <dt>Habilidades</dt><dd>${esc((c.habilidades || []).join(', ') || 'Não informadas')}</dd>
+          <dt>Currículo</dt><dd>${c.curriculo_nome ? esc(c.curriculo_nome) : 'Nenhum PDF enviado'}</dd>
+        </dl>
+        ${urlPdf ? `<a class="btn btn-roxo" href="${esc(urlPdf)}" target="_blank" rel="noopener">Abrir PDF</a>` : (c.curriculo_path ? '<p class="dica">Não foi possível gerar o link do PDF agora. Tente de novo.</p>' : '')}
+        <button class="btn btn-claro" data-fechar>Fechar</button>
+      </div>`);
+  } catch (e) { erroToast(e); }
 }
 
-function marcarChamado(idCand) {
-  const it = db.iteracao.find(i => i.id_empresa === est.usuario.id && i.id_candidato === idCand);
-  if (it && !it.chamado) { it.chamado = true; salvar(); }
-  if (est.tela === 'matches') render();
+function termosHtml() {
+  return `<div class="curriculo">
+    <h2 style="font-size:24px;text-align:left">Termos de uso e privacidade</h2>
+    <p class="dica" style="text-align:left;font-size:14px;line-height:1.5">
+      O MatchWork é um projeto de extensão universitária que conecta candidatos e pequenas empresas da região.<br><br>
+      <strong>Dados coletados:</strong> nome, cargo desejado, cidade, habilidades, WhatsApp, e-mail e, se você enviar, o PDF do currículo.<br>
+      <strong>Para que usamos:</strong> exibir seu perfil às empresas cadastradas e permitir o contato depois de um match.<br>
+      <strong>Quem vê o quê:</strong> empresas logadas veem nome, cargo, cidade e habilidades. WhatsApp, e-mail e currículo só ficam visíveis para empresas que deram match com você.<br>
+      <strong>Seus direitos (LGPD):</strong> você pode editar seus dados a qualquer momento em "Meu perfil" e excluí-los em "Ajustes".<br>
+      <strong>Armazenamento:</strong> os dados ficam em servidor seguro (Supabase), com acesso restrito por regras de segurança.
+    </p>
+    <button class="btn btn-claro" data-fechar>Fechar</button>
+  </div>`;
+}
+
+async function marcarChamado(idCand) {
+  try {
+    const r = await sb.from('iteracao').update({ chamado: true }).eq('id_empresa', est.usuario.id).eq('id_candidato', idCand);
+    if (r.error) throw r.error;
+    const m = est.matches.find(x => x.c.id === idCand); if (m) m.it.chamado = true;
+    if (est.tela === 'matches') render();
+  } catch (e) { erroToast(e); }
 }
 
 // ================= EMPRESA: meus matches =================
 function telaMatches() {
-  const idEmp = est.usuario.id;
-  const lista = db.iteracao.filter(i => i.id_empresa === idEmp && i.status_match === 'sim')
-    .map(i => ({ it: i, c: db.candidato.find(x => x.id === i.id_candidato) })).filter(x => x.c);
+  const lista = est.matches;
   const aguardando = lista.filter(x => !x.it.chamado).length;
-  const linhas = lista.map(({ it, c }) => `
+  const linhas = lista.map(({ it, c, contato }) => `
     <tr>
       <td><div class="quem"><div class="avatar">${esc(iniciais(c.nome))}</div>${esc(c.nome)}</div></td>
-      <td>${esc(c.cargo)}</td>
+      <td>${esc(c.cargo || '')}</td>
       <td><span class="pill ${it.chamado ? 'sim' : 'nao'}">${it.chamado ? 'Chamado' : 'Não chamado'}</span></td>
       <td><div class="acoes">
-        ${linkWhats(c.telefone) ? `<a class="btn btn-verde btn-sm" href="${linkWhats(c.telefone)}" target="_blank" rel="noopener" data-whats-lista="${c.id}">WhatsApp</a>` : ''}
-        <button class="btn btn-claro btn-sm" data-curriculo="${c.id}">Currículo</button>
+        ${linkWhats(contato.telefone) ? `<a class="btn btn-verde btn-sm" href="${linkWhats(contato.telefone)}" target="_blank" rel="noopener" data-whats-lista="${esc(c.id)}">WhatsApp</a>` : ''}
+        <button class="btn btn-claro btn-sm" data-curriculo="${esc(c.id)}">Currículo</button>
       </div></td>
     </tr>`).join('');
   return `${topoEmpresa('matches')}
@@ -785,22 +1020,18 @@ function telaMatches() {
     <p class="sub">${lista.length ? `${aguardando} ${aguardando === 1 ? 'candidato aguardando' : 'candidatos aguardando'} contato` : 'Você ainda não deu match com ninguém.'}</p>
     ${lista.length ? `<div class="tabela-caixa"><table>
       <thead><tr><th>Candidato</th><th>Cargo</th><th>Status</th><th>Ações</th></tr></thead>
-      <tbody>${linhas}</tbody></table></div>`
-      : `<div style="margin-top:28px"><button class="btn btn-roxo" data-ir="swipe">Ver candidatos</button></div>`}
-    ${lista.length ? `<div style="margin-top:28px"><button class="btn btn-roxo" style="width:240px" data-ir="swipe">Voltar aos candidatos</button></div>` : ''}
-    ${rodapeProto()}
+      <tbody>${linhas}</tbody></table></div>` : ''}
+    <div style="margin-top:28px"><button class="btn btn-roxo" style="width:240px" data-ir="swipe">${lista.length ? 'Voltar aos candidatos' : 'Ver candidatos'}</button></div>
+    ${rodape()}
   </div></main>`;
-}
-
-function rodapeProto() {
-  return `<p class="rodape-proto">Protótipo acadêmico com dados fictícios. <button class="link" data-restaurar style="font-size:12.5px">Restaurar dados de exemplo</button></p>`;
 }
 
 // ================= Renderização e eventos =================
 function render() {
   const precisaLogin = ['painel', 'perfil', 'ajustes', 'swipe', 'matches'];
-  if (precisaLogin.includes(est.tela) && !eu()) { est.usuario = null; est.tela = 'inicio'; }
+  if (precisaLogin.includes(est.tela) && !est.usuario) est.tela = 'inicio';
   const telas = {
+    'carregando': telaCarregando,
     'inicio': telaInicio,
     'cad-candidato': () => telaFormCandidato(false),
     'perfil': () => telaFormCandidato(true),
@@ -812,18 +1043,11 @@ function render() {
     'swipe': telaSwipe,
     'matches': telaMatches
   };
-  document.getElementById('app').innerHTML = telas[est.tela]();
+  document.getElementById('app').innerHTML = (telas[est.tela] || telaInicio)();
   ligar();
 }
 
-function entrar(tipo, id) {
-  document.getElementById('toast').hidden = true;
-  est.usuario = { tipo, id };
-  est.rascunho = null;
-  est.filtros = { cargo: '', habilidades: [], cidade: '' };
-  est.filtrosAplicados = { cargo: '', habilidades: [], cidade: '' };
-  ir(tipo === 'empresa' ? 'swipe' : 'painel');
-}
+function mensagemDe(e) { return e && String(e.message || '').startsWith('__') ? e.message.slice(2) : traduzErro(e); }
 
 function ligar() {
   const app = document.getElementById('app');
@@ -834,44 +1058,59 @@ function ligar() {
   });
   app.querySelectorAll('[data-rolar]').forEach(b => b.onclick = () => document.getElementById(b.dataset.rolar).scrollIntoView({ behavior: 'smooth' }));
   app.querySelectorAll('[data-demo]').forEach(b => b.onclick = () => { est.demo++; render(); });
-  app.querySelectorAll('[data-sair]').forEach(b => b.onclick = () => { est.usuario = null; est.rascunho = null; ir('inicio'); toast('Você saiu'); });
-  app.querySelectorAll('[data-restaurar]').forEach(b => b.onclick = () => {
-    db = dadosIniciais(); salvar();
-    Object.keys(pdfsDaSessao).forEach(k => delete pdfsDaSessao[k]);
-    est.usuario = null; est.rascunho = null; ir('inicio'); toast('Dados de exemplo restaurados');
-  });
-  app.querySelectorAll('[data-preencher]').forEach(b => b.onclick = () => {
-    document.getElementById('l-email').value = b.dataset.preencher;
-    document.getElementById('l-senha').value = '123456';
-  });
-  app.querySelectorAll('[data-curriculo]').forEach(b => b.onclick = () => abrirCurriculo(Number(b.dataset.curriculo)));
-  app.querySelectorAll('[data-whats-lista]').forEach(a => a.addEventListener('click', () => marcarChamado(Number(a.dataset.whatsLista))));
+  app.querySelectorAll('[data-sair]').forEach(b => b.onclick = sair);
+  app.querySelectorAll('[data-recarregar]').forEach(b => b.onclick = () => ir(est.tela));
+  app.querySelectorAll('[data-termos]').forEach(b => b.onclick = ev => { ev.preventDefault(); abrirModal(termosHtml()); });
+  app.querySelectorAll('[data-curriculo]').forEach(b => b.onclick = () => abrirCurriculo(b.dataset.curriculo));
+  app.querySelectorAll('[data-whats-lista]').forEach(a => a.addEventListener('click', () => marcarChamado(a.dataset.whatsLista)));
+
+  const bx = app.querySelector('[data-excluir]');
+  if (bx) bx.onclick = () => {
+    const caixa = document.getElementById('caixa-excluir');
+    caixa.innerHTML = `<span><strong>Tem certeza?</strong> Essa ação não pode ser desfeita.</span>
+      <span style="display:flex;gap:8px"><button class="btn btn-claro btn-sm" data-cancelar>Cancelar</button>
+      <button class="btn btn-verde btn-sm" data-confirmar>Sim, excluir</button></span>`;
+    caixa.querySelector('[data-cancelar]').onclick = () => render();
+    caixa.querySelector('[data-confirmar]').onclick = async () => { try { await excluirDados(); } catch (e) { erroToast(e); } };
+  };
 
   // Login
   const fl = document.getElementById('form-login');
-  if (fl) fl.onsubmit = ev => {
+  if (fl) fl.onsubmit = async ev => {
     ev.preventDefault();
+    if (est.ocupado) return;
     const tipo = fl.dataset.tipo;
-    const email = normal(document.getElementById('l-email').value);
+    const email = document.getElementById('l-email').value.trim();
     const senha = document.getElementById('l-senha').value;
-    const conta = (tipo === 'empresa' ? db.empresa : db.candidato).find(u => normal(u.email) === email && u.senha === senha);
-    if (!conta) { est.erro = 'E-mail ou senha incorretos. Confira os dados ou use a conta de demonstração.'; render(); return; }
-    entrar(tipo, conta.id);
+    est.loginEmail = email;
+    if (!email || !senha) { est.erro = 'Preencha e-mail e senha.'; render(); return; }
+    est.ocupado = true; est.erro = ''; render();
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+      if (error) throw error;
+      await entrarComUsuario(data.user, tipo);
+    } catch (e) { erroNaTela(e); }
   };
 
   // Cadastro de empresa
   const fe = document.getElementById('form-cad-empresa');
-  if (fe) fe.onsubmit = ev => {
+  if (fe) fe.onsubmit = async ev => {
     ev.preventDefault();
+    if (est.ocupado) return;
     const nome = document.getElementById('e-nome').value.trim();
     const email = document.getElementById('e-email').value.trim();
     const senha = document.getElementById('e-senha').value;
-    if (!nome || !email || !senha) { est.erro = 'Preencha nome, e-mail e senha.'; render(); return; }
-    if (db.empresa.some(e => normal(e.email) === normal(email))) { est.erro = 'Já existe uma empresa com esse e-mail. Faça login.'; render(); return; }
-    const nova = { id: Math.max(0, ...db.empresa.map(e => e.id)) + 1, nome, email, senha };
-    db.empresa.push(nova); salvar();
-    entrar('empresa', nova.id);
-    toast('Empresa cadastrada');
+    const aceite = document.getElementById('aceite').checked;
+    est.ocupado = true; est.erro = ''; render();
+    // devolve os valores digitados depois do render
+    document.getElementById('e-nome').value = nome; document.getElementById('e-email').value = email;
+    document.getElementById('e-senha').value = senha; document.getElementById('aceite').checked = aceite;
+    try { await cadastrarEmpresa(nome, email, senha, aceite); }
+    catch (e) {
+      console.error(e); est.erro = mensagemDe(e); est.ocupado = false; render();
+      document.getElementById('e-nome').value = nome; document.getElementById('e-email').value = email;
+      document.getElementById('aceite').checked = aceite;
+    }
   };
 
   // Cadastro / edição do candidato
@@ -881,14 +1120,15 @@ function ligar() {
       est.rascunho[inp.dataset.r] = inp.value;
       document.getElementById('previa').outerHTML = previaCard(est.rascunho);
     }));
+    const ac = document.getElementById('aceite');
+    if (ac) ac.onchange = () => est.rascunho.aceite = ac.checked;
     const up = document.getElementById('upload');
     const arquivo = document.getElementById('c-pdf');
     const receber = f => {
       if (!f) return;
       if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { est.erro = 'Envie o currículo em PDF.'; render(); return; }
       if (f.size > 5 * 1024 * 1024) { est.erro = 'O PDF tem mais de 5 MB. Envie um arquivo menor.'; render(); return; }
-      est.rascunho.curriculo = f.name;
-      try { est.rascunho.pdf = URL.createObjectURL(f); } catch (e) { est.rascunho.pdf = ''; }
+      est.rascunho.arquivo = f; est.rascunho.removerPdf = false;
       est.erro = ''; render();
     };
     arquivo.onchange = () => receber(arquivo.files[0]);
@@ -896,26 +1136,14 @@ function ligar() {
     ['dragleave', 'drop'].forEach(t => up.addEventListener(t, () => up.classList.remove('arrastando')));
     up.addEventListener('drop', ev => { ev.preventDefault(); receber(ev.dataTransfer.files[0]); });
     const tirar = document.getElementById('tirar-pdf');
-    if (tirar) tirar.onclick = () => { est.rascunho.curriculo = ''; est.rascunho.pdf = ''; render(); };
+    if (tirar) tirar.onclick = () => { est.rascunho.arquivo = null; est.rascunho.removerPdf = true; render(); };
 
-    fc.onsubmit = ev => {
+    fc.onsubmit = async ev => {
       ev.preventDefault();
-      const r = est.rascunho;
-      const hab = listaHab(r.habilidades);
-      const editando = est.tela === 'perfil';
-      if (!r.nome.trim() || !r.email.trim() || !r.senha) { est.erro = 'Preencha nome, e-mail e senha.'; render(); return; }
-      if (hab.length > 5) { est.erro = `Você informou ${hab.length} habilidades. Escolha no máximo 5.`; render(); return; }
-      const dono = db.candidato.find(c => normal(c.email) === normal(r.email));
-      if (dono && (!editando || dono.id !== est.usuario.id)) { est.erro = 'Já existe um perfil com esse e-mail. Faça login.'; render(); return; }
-      const dados = { nome: r.nome.trim(), email: r.email.trim(), senha: r.senha, cargo: r.cargo.trim(), telefone: r.telefone.trim(),
-                      cidade: r.cidade.trim(), habilidades: hab, curriculo: r.curriculo };
-      let id;
-      if (editando) { Object.assign(eu(), dados); id = est.usuario.id; }
-      else { id = Math.max(0, ...db.candidato.map(c => c.id)) + 1; db.candidato.push({ id, ...dados }); }
-      if (r.pdf) pdfsDaSessao[id] = r.pdf; else delete pdfsDaSessao[id];
-      salvar();
-      if (editando) { est.rascunho = null; ir('painel'); toast('Perfil salvo'); }
-      else { entrar('candidato', id); toast('Perfil publicado na vitrine'); }
+      if (est.ocupado) return;
+      est.ocupado = true; est.erro = ''; render();
+      try { await salvarCandidato(); }
+      catch (e) { console.error(e); est.erro = mensagemDe(e); est.ocupado = false; render(); }
     };
   }
 
@@ -941,26 +1169,33 @@ function ligar() {
   });
   app.querySelectorAll('[data-decidir]').forEach(b => b.onclick = () => {
     const card = document.getElementById('card');
+    if (!card) return;
     const st = b.dataset.decidir;
-    animarSaida(st === 'sim' ? 1 : -1, () => decidir(Number(card.dataset.id), st));
+    animarSaida(st === 'sim' ? 1 : -1, () => decidir(card.dataset.id, st));
   });
   ligarArraste();
 }
 
-// Teclado no swipe: seta esquerda descarta, seta direita dá match
+// Teclado no swipe
 document.addEventListener('keydown', ev => {
-  if (est.tela !== 'swipe' || document.getElementById('modal').innerHTML) {
-    if (ev.key === 'Escape') fecharModal();
-    return;
-  }
+  if (document.getElementById('modal').innerHTML) { if (ev.key === 'Escape') fecharModal(); return; }
+  if (est.tela !== 'swipe') return;
   if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
   const card = document.getElementById('card');
   if (!card) return;
-  if (ev.key === 'ArrowRight') animarSaida(1, () => decidir(Number(card.dataset.id), 'sim'));
-  if (ev.key === 'ArrowLeft') animarSaida(-1, () => decidir(Number(card.dataset.id), 'não'));
+  if (ev.key === 'ArrowRight') animarSaida(1, () => decidir(card.dataset.id, 'sim'));
+  if (ev.key === 'ArrowLeft') animarSaida(-1, () => decidir(card.dataset.id, 'não'));
 });
 
-render();
+// ---------- Início ----------
+(async function iniciar() {
+  render();
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data.session) await entrarComUsuario(data.session.user, 'candidato');
+    else await ir('inicio');
+  } catch (e) { erroToast(e); await ir('inicio'); }
+})();
 </script>
 </body>
 </html>
