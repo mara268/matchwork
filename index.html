@@ -398,8 +398,15 @@ async function criarPerfilGuardado(user) {
   return null; // conta antiga sem dados guardados: pede para completar o cadastro
 }
 
-async function entrarComUsuario(user, tipoEscolhido) {
+async function entrarComUsuario(user, tipoEscolhido, aoAbrirSite) {
   const p = await descobrirPerfil(user);
+  if (!p && aoAbrirSite) {
+    // sessão antiga sem perfil: ao abrir o site, mostra a página inicial
+    await sb.auth.signOut();
+    est.usuario = null; est.completando = null; est.emailPendente = '';
+    await ir('inicio');
+    return;
+  }
   if (!p) {
     // conta existe sem perfil: completar o cadastro com a mesma sessão
     est.usuario = null;
@@ -1280,8 +1287,11 @@ document.addEventListener('keydown', ev => {
     const { data } = await sb.auth.getSession();
     if (data.session) {
       const voltouDoEmail = /access_token|type=signup/.test(window.location.hash);
-      await entrarComUsuario(data.session.user, (data.session.user.user_metadata || {}).tipo || 'candidato');
-      if (voltouDoEmail) toast('E-mail confirmado. Bem-vindo ao MatchWork!');
+      // confere no servidor se a conta ainda existe (pode ter sido apagada)
+      const u = await sb.auth.getUser();
+      if (u.error || !u.data.user) { await sb.auth.signOut(); await ir('inicio'); return; }
+      await entrarComUsuario(u.data.user, (u.data.user.user_metadata || {}).tipo || 'candidato', !voltouDoEmail);
+      if (voltouDoEmail && est.usuario) toast('E-mail confirmado. Bem-vindo ao MatchWork!');
     } else await ir('inicio');
   } catch (e) { erroToast(e); await ir('inicio'); }
 })();
